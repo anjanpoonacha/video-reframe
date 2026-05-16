@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Spike 001: Frame Extraction</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+:root {
+  --bg: #0a0a0f;
+  --surface: #16161f;
+  --border: #2a2a3a;
+  --text: #e8e8f0;
+  --text-dim: #8888a0;
+  --accent: #6366f1;
+}
+body {
+  font-family: -apple-system, system-ui, sans-serif;
+  background: var(--bg); color: var(--text);
+  padding: 20px; max-width: 900px; margin: 0 auto;
+}
+h1 { font-size: 20px; margin-bottom: 8px; }
+.subtitle { color: var(--text-dim); font-size: 13px; margin-bottom: 20px; }
+.card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 12px; padding: 16px; margin-bottom: 12px;
+}
+.btn {
+  padding: 12px 20px; border: none; border-radius: 8px;
+  font-size: 14px; font-weight: 600; cursor: pointer;
+  background: var(--accent); color: white;
+}
+.btn:disabled { opacity: 0.4; cursor: default; }
+#fileInput { display: none; }
+
+.filmstrip {
+  display: flex; gap: 2px; overflow-x: auto; padding: 8px 0;
+  scrollbar-width: thin;
+}
+.filmstrip canvas {
+  flex-shrink: 0; border-radius: 4px; cursor: pointer;
+  border: 2px solid transparent; transition: border-color 0.1s;
+}
+.filmstrip canvas.active { border-color: var(--accent); }
+.filmstrip canvas:hover { border-color: rgba(99,102,241,0.5); }
+
+.preview-area {
+  display: flex; gap: 16px; align-items: flex-start; flex-wrap: wrap;
+}
+#previewCanvas {
+  border-radius: 8px; background: #000; max-width: 100%;
+}
+.metrics { font-size: 13px; color: var(--text-dim); margin-top: 8px; }
+.metric-row { display: flex; justify-content: space-between; padding: 4px 0; }
+.metric-value { color: var(--text); font-weight: 600; }
+
+#seekSlider {
+  width: 100%; margin: 12px 0; accent-color: var(--accent);
+}
+.status { font-size: 13px; color: var(--text-dim); min-height: 20px; margin: 8px 0; }
+.status.success { color: #34d399; }
+.status.warn { color: #fbbf24; }
+</style>
+</head>
+<body>
+
+<h1>Spike 001: Frame Extraction</h1>
+<p class="subtitle">Validates: fast frame access for interactive scrubbing</p>
+
+<div class="card">
+  <button class="btn" onclick="document.getElementById('fileInput').click()">Load Video</button>
+  <input type="file" id="fileInput" accept="video/*">
+  <div class="status" id="loadStatus"></div>
+</div>
+
+<div class="card" id="extractCard" style="display:none">
+  <div style="font-weight:600; margin-bottom:8px">Thumbnail Extraction</div>
+  <button class="btn" id="extractBtn">Extract Filmstrip</button>
+  <div class="status" id="extractStatus"></div>
+  <div class="metrics" id="extractMetrics"></div>
+</div>
+
+<div class="card" id="filmstripCard" style="display:none">
+  <div style="font-weight:600; margin-bottom:8px">Filmstrip (click to seek)</div>
+  <div class="filmstrip" id="filmstrip"></div>
+</div>
+
+<div class="card" id="seekCard" style="display:none">
+  <div style="font-weight:600; margin-bottom:8px">Frame Seek Test</div>
+  <input type="range" id="seekSlider" min="0" max="100" value="0">
+  <div class="preview-area">
+    <canvas id="previewCanvas" width="640" height="360"></canvas>
+  </div>
+  <div class="metrics" id="seekMetrics"></div>
+  <div class="status" id="seekStatus"></div>
+</div>
+
+<div class="card" id="benchCard" style="display:none">
+  <div style="font-weight:600; margin-bottom:8px">Benchmark Results</div>
+  <button class="btn" id="benchBtn">Run Seek Benchmark (100 random frames)</button>
+  <div class="metrics" id="benchMetrics"></div>
+</div>
+
+<script type="module">
+let video = null;
+let thumbnails = [];
+let duration = 0;
+const THUMB_W = 80;
+const THUMB_H = 45;
+
+document.getElementById('fileInput').addEventListener('change', async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+
+  video = document.createElement('video');
+  video.muted = true;
+  video.playsInline = true;
+  video.preload = 'auto';
+  video.src = URL.createObjectURL(file);
+
+  await new Promise(r => video.addEventListener('loadeddata', r, { once: true }));
+  duration = video.duration;
+
+  document.getElementById('loadStatus').textContent =
+    `${video.videoWidth}x${video.videoHeight} · ${duration.toFixed(1)}s · ${(file.size/1024/1024).toFixed(1)}MB`;
+  document.getElementById('loadStatus').className = 'status success';
+  document.getElementById('extractCard').style.display = '';
+});
+
+// Thumbnail extraction
+document.getElementById('extractBtn').addEventListener('click', async () => {
+  const btn = document.getElementById('extractBtn');
+  btn.disabled = true;
+
+  const numThumbs = Math.min(200, Math.round(duration * 2));
+  const step = duration / numThumbs;
+  const canvas = document.createElement('canvas');
+  canvas.width = THUMB_W;
+  canvas.height = THUMB_H;
+  const ctx = canvas.getContext('2d');
+
+  thumbnails = [];
+  const t0 = performance.now();
+
+  for (let i = 0; i < numThumbs; i++) {
+    video.currentTime = i * step;
+    await new Promise(r => video.addEventListener('seeked', r, { once: true }));
+    ctx.drawImage(video, 0, 0, THUMB_W, THUMB_H);
+    const bitmap = await createImageBitmap(canvas);
+    thumbnails.push({ time: i * step, bitmap });
+
+    document.getElementById('extractStatus').textContent =
+      `Extracting... ${i+1}/${numThumbs}`;
+  }
+
+  const elapsed = performance.now() - t0;
+  const perFrame = elapsed / numThumbs;
+
+  document.getElementById('extractStatus').textContent = 'Done!';
+  document.getElementById('extractStatus').className = 'status success';
+  document.getElementById('extractMetrics').innerHTML = `
+    <div class="metric-row"><span>Total time</span><span class="metric-value">${(elapsed/1000).toFixed(2)}s</span></div>
+    <div class="metric-row"><span>Frames extracted</span><span class="metric-value">${numThumbs}</span></div>
+    <div class="metric-row"><span>Per frame (avg)</span><span class="metric-value">${perFrame.toFixed(1)}ms</span></div>
+  `;
+
+  renderFilmstrip();
+  setupSeekTest();
+  document.getElementById('filmstripCard').style.display = '';
+  document.getElementById('seekCard').style.display = '';
+  document.getElementById('benchCard').style.display = '';
+  btn.disabled = false;
+});
+
+function renderFilmstrip() {
+  const container = document.getElementById('filmstrip');
+  container.innerHTML = '';
+
+  for (let i = 0; i < thumbnails.length; i++) {
+    const c = document.createElement('canvas');
+    c.width = THUMB_W;
+    c.height = THUMB_H;
+    c.getContext('2d').drawImage(thumbnails[i].bitmap, 0, 0);
+    c.addEventListener('click', () => seekToFrame(i));
+    container.appendChild(c);
+  }
+}
+
+async function seekToFrame(idx) {
+  const t0 = performance.now();
+  video.currentTime = thumbnails[idx].time;
+  await new Promise(r => video.addEventListener('seeked', r, { once: true }));
+
+  const canvas = document.getElementById('previewCanvas');
+  const ctx = canvas.getContext('2d');
+  const scale = Math.min(640 / video.videoWidth, 360 / video.videoHeight);
+  canvas.width = video.videoWidth * scale;
+  canvas.height = video.videoHeight * scale;
+  ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+  const elapsed = performance.now() - t0;
+  document.getElementById('seekStatus').textContent =
+    `Seek to ${thumbnails[idx].time.toFixed(2)}s took ${elapsed.toFixed(1)}ms`;
+  document.getElementById('seekStatus').className =
+    elapsed < 50 ? 'status success' : 'status warn';
+
+  // Highlight active thumbnail
+  document.querySelectorAll('.filmstrip canvas').forEach((c, i) =>
+    c.classList.toggle('active', i === idx));
+}
+
+function setupSeekTest() {
+  const slider = document.getElementById('seekSlider');
+  let debounce = null;
+
+  slider.addEventListener('input', () => {
+    clearTimeout(debounce);
+    debounce = setTimeout(async () => {
+      const pct = slider.value / 100;
+      const targetTime = pct * duration;
+      const t0 = performance.now();
+
+      video.currentTime = targetTime;
+      await new Promise(r => video.addEventListener('seeked', r, { once: true }));
+
+      const canvas = document.getElementById('previewCanvas');
+      const ctx = canvas.getContext('2d');
+      const scale = Math.min(640 / video.videoWidth, 360 / video.videoHeight);
+      canvas.width = video.videoWidth * scale;
+      canvas.height = video.videoHeight * scale;
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+      const elapsed = performance.now() - t0;
+      document.getElementById('seekMetrics').innerHTML = `
+        <div class="metric-row"><span>Last seek</span><span class="metric-value">${elapsed.toFixed(1)}ms</span></div>
+        <div class="metric-row"><span>Target</span><span class="metric-value">${targetTime.toFixed(2)}s</span></div>
+      `;
+    }, 16);
+  });
+}
+
+// Benchmark
+document.getElementById('benchBtn').addEventListener('click', async () => {
+  const btn = document.getElementById('benchBtn');
+  btn.disabled = true;
+  const times = [];
+  const n = 100;
+
+  for (let i = 0; i < n; i++) {
+    const targetTime = Math.random() * duration;
+    const t0 = performance.now();
+    video.currentTime = targetTime;
+    await new Promise(r => video.addEventListener('seeked', r, { once: true }));
+    times.push(performance.now() - t0);
+  }
+
+  times.sort((a, b) => a - b);
+  const avg = times.reduce((a, b) => a + b, 0) / n;
+  const p50 = times[Math.floor(n * 0.5)];
+  const p95 = times[Math.floor(n * 0.95)];
+  const p99 = times[Math.floor(n * 0.99)];
+  const under50 = times.filter(t => t < 50).length;
+
+  document.getElementById('benchMetrics').innerHTML = `
+    <div class="metric-row"><span>Avg seek time</span><span class="metric-value">${avg.toFixed(1)}ms</span></div>
+    <div class="metric-row"><span>P50</span><span class="metric-value">${p50.toFixed(1)}ms</span></div>
+    <div class="metric-row"><span>P95</span><span class="metric-value">${p95.toFixed(1)}ms</span></div>
+    <div class="metric-row"><span>P99</span><span class="metric-value">${p99.toFixed(1)}ms</span></div>
+    <div class="metric-row"><span>Under 50ms</span><span class="metric-value">${under50}/${n} (${(under50/n*100).toFixed(0)}%)</span></div>
+    <div class="metric-row"><span>Min / Max</span><span class="metric-value">${times[0].toFixed(1)}ms / ${times[n-1].toFixed(1)}ms</span></div>
+  `;
+
+  btn.disabled = false;
+});
+</script>
+</body>
+</html>

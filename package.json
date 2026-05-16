@@ -1,0 +1,20 @@
+{
+  "name": "video-reframe",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "dev": "bun --hot serve.ts",
+    "build": "bun build ./index.html --outdir ./dist",
+    "preview": "bunx serve dist"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "@types/dom-webcodecs": "^0.1.18"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  },
+  "dependencies": {
+    "mp4-muxer": "^5.2.2"
+  }
+}

@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Spike 003a: Drag Crop</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+:root {
+  --bg: #0a0a0f;
+  --surface: #16161f;
+  --border: #2a2a3a;
+  --text: #e8e8f0;
+  --text-dim: #8888a0;
+  --accent: #6366f1;
+  --accent-glow: rgba(99, 102, 241, 0.3);
+}
+body {
+  font-family: -apple-system, system-ui, sans-serif;
+  background: var(--bg); color: var(--text);
+  padding: 16px; max-width: 480px; margin: 0 auto;
+}
+h1 { font-size: 18px; margin-bottom: 4px; }
+.subtitle { color: var(--text-dim); font-size: 12px; margin-bottom: 16px; }
+.card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 12px; padding: 16px; margin-bottom: 12px;
+}
+.btn {
+  padding: 12px 20px; border: none; border-radius: 8px;
+  font-size: 14px; font-weight: 600; cursor: pointer;
+  background: var(--accent); color: white; width: 100%;
+}
+#fileInput { display: none; }
+
+/* Canvas overlay */
+.canvas-container {
+  position: relative; touch-action: none;
+  border-radius: 8px; overflow: hidden; margin-bottom: 12px;
+}
+#sourceCanvas { width: 100%; display: block; }
+.crop-overlay {
+  position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+  pointer-events: none;
+}
+.crop-region {
+  position: absolute; top: 0; height: 100%;
+  border: 2px solid var(--accent);
+  background: transparent;
+  box-shadow: -9999px 0 0 9999px rgba(0,0,0,0.6),
+              9999px 0 0 9999px rgba(0,0,0,0.6);
+  pointer-events: auto; cursor: grab;
+  touch-action: none;
+}
+.crop-region:active { cursor: grabbing; }
+
+/* Result preview */
+.result-container { text-align: center; }
+#resultCanvas {
+  border-radius: 8px; background: #000;
+  max-height: 300px;
+}
+
+.info { font-size: 12px; color: var(--text-dim); margin: 8px 0; text-align: center; }
+.hidden { display: none; }
+</style>
+</head>
+<body>
+
+<h1>Spike 003a: Drag Crop</h1>
+<p class="subtitle">Validates: dragging crop region updates preview in real-time</p>
+
+<div class="card">
+  <button class="btn" onclick="document.getElementById('fileInput').click()">Load Video</button>
+  <input type="file" id="fileInput" accept="video/*">
+</div>
+
+<div class="card hidden" id="editUI">
+  <div class="info">Drag the highlighted region left/right to set crop position</div>
+
+  <div class="canvas-container" id="canvasContainer">
+    <canvas id="sourceCanvas"></canvas>
+    <div class="crop-overlay">
+      <div class="crop-region" id="cropRegion"></div>
+    </div>
+  </div>
+
+  <div class="result-container">
+    <canvas id="resultCanvas"></canvas>
+  </div>
+
+  <div class="info" id="posInfo">Position: 50%</div>
+
+  <!-- Seek control -->
+  <input type="range" id="seekSlider" min="0" max="100" value="50"
+    style="width:100%; margin-top:12px; accent-color:var(--accent)">
+  <div class="info" id="timeInfo">Seek to different frames</div>
+</div>
+
+<script type="module">
+let video = null;
+let cropX = 0.5; // 0-1 normalized position of crop center
+
+document.getElementById('fileInput').addEventListener('change', async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+
+  video = document.createElement('video');
+  video.muted = true;
+  video.playsInline = true;
+  video.preload = 'auto';
+  video.src = URL.createObjectURL(file);
+  await new Promise(r => video.addEventListener('loadeddata', r, { once: true }));
+
+  document.getElementById('editUI').classList.remove('hidden');
+  video.currentTime = video.duration / 2;
+  await new Promise(r => video.addEventListener('seeked', r, { once: true }));
+  drawFrame();
+  setupDrag();
+  setupSeek();
+});
+
+function drawFrame() {
+  const srcCanvas = document.getElementById('sourceCanvas');
+  const srcCtx = srcCanvas.getContext('2d');
+  const w = video.videoWidth;
+  const h = video.videoHeight;
+
+  // Source frame (full width)
+  srcCanvas.width = w;
+  srcCanvas.height = h;
+  srcCtx.drawImage(video, 0, 0);
+
+  // Calculate crop dimensions (9:16 from the source)
+  const cropW = h * (9 / 16);
+  const maxOffset = w - cropW;
+  const cropLeft = maxOffset * cropX;
+
+  // Position the crop region overlay
+  const container = document.getElementById('canvasContainer');
+  const displayScale = container.clientWidth / w;
+  const region = document.getElementById('cropRegion');
+  region.style.width = (cropW * displayScale) + 'px';
+  region.style.left = (cropLeft * displayScale) + 'px';
+
+  // Draw result (cropped 9:16)
+  const resCanvas = document.getElementById('resultCanvas');
+  const resH = 300;
+  const resW = resH * (9 / 16);
+  resCanvas.width = resW;
+  resCanvas.height = resH;
+  resCanvas.getContext('2d').drawImage(video, cropLeft, 0, cropW, h, 0, 0, resW, resH);
+
+  document.getElementById('posInfo').textContent =
+    `Position: ${Math.round(cropX * 100)}% | Crop: ${Math.round(cropLeft)}px from left`;
+}
+
+function setupDrag() {
+  const region = document.getElementById('cropRegion');
+  const container = document.getElementById('canvasContainer');
+  let dragging = false;
+  let startX = 0;
+  let startCropX = 0;
+
+  function onStart(clientX) {
+    dragging = true;
+    startX = clientX;
+    startCropX = cropX;
+    region.style.cursor = 'grabbing';
+  }
+
+  function onMove(clientX) {
+    if (!dragging) return;
+    const containerW = container.clientWidth;
+    const dx = clientX - startX;
+    const dxNorm = dx / containerW;
+    cropX = Math.max(0, Math.min(1, startCropX + dxNorm));
+    drawFrame();
+  }
+
+  function onEnd() {
+    dragging = false;
+    region.style.cursor = 'grab';
+  }
+
+  // Mouse
+  region.addEventListener('mousedown', (e) => { e.preventDefault(); onStart(e.clientX); });
+  window.addEventListener('mousemove', (e) => onMove(e.clientX));
+  window.addEventListener('mouseup', onEnd);
+
+  // Touch
+  region.addEventListener('touchstart', (e) => { e.preventDefault(); onStart(e.touches[0].clientX); });
+  window.addEventListener('touchmove', (e) => { if (dragging) onMove(e.touches[0].clientX); });
+  window.addEventListener('touchend', onEnd);
+
+  // Also allow clicking anywhere on the source canvas to set position
+  container.addEventListener('click', (e) => {
+    if (dragging) return;
+    const rect = container.getBoundingClientRect();
+    cropX = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+    drawFrame();
+  });
+}
+
+function setupSeek() {
+  const slider = document.getElementById('seekSlider');
+  slider.addEventListener('input', async () => {
+    const t = (slider.value / 100) * video.duration;
+    video.currentTime = t;
+    await new Promise(r => video.addEventListener('seeked', r, { once: true }));
+    drawFrame();
+    document.getElementById('timeInfo').textContent =
+      `Time: ${t.toFixed(1)}s / ${video.duration.toFixed(1)}s`;
+  });
+}
+</script>
+</body>
+</html>

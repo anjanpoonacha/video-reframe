@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Spike 004: Frame Delete/Skip</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+:root {
+  --bg: #0a0a0f;
+  --surface: #16161f;
+  --surface-2: #1e1e2a;
+  --border: #2a2a3a;
+  --text: #e8e8f0;
+  --text-dim: #8888a0;
+  --accent: #6366f1;
+  --success: #34d399;
+  --danger: #f87171;
+  --warning: #fbbf24;
+}
+body {
+  font-family: -apple-system, system-ui, sans-serif;
+  background: var(--bg); color: var(--text);
+  padding: 16px; max-width: 480px; margin: 0 auto;
+}
+h1 { font-size: 18px; margin-bottom: 4px; }
+.subtitle { color: var(--text-dim); font-size: 12px; margin-bottom: 16px; }
+.card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 12px; padding: 16px; margin-bottom: 12px;
+}
+.btn {
+  padding: 10px 16px; border: none; border-radius: 8px;
+  font-size: 13px; font-weight: 600; cursor: pointer;
+  background: var(--accent); color: white;
+}
+.btn:disabled { opacity: 0.4; }
+.btn-danger { background: var(--danger); }
+.btn-success { background: var(--success); color: #000; }
+.btn-warning { background: var(--warning); color: #000; }
+#fileInput { display: none; }
+
+/* Range selector */
+.range-bar {
+  position: relative; height: 60px; background: var(--surface-2);
+  border-radius: 8px; overflow: hidden; margin: 12px 0;
+}
+.range-bar canvas { width: 100%; height: 100%; display: block; }
+.range-selection {
+  position: absolute; top: 0; height: 100%;
+  background: rgba(248, 113, 113, 0.3);
+  border-left: 2px solid var(--danger);
+  border-right: 2px solid var(--danger);
+}
+.range-handle {
+  position: absolute; top: 0; height: 100%; width: 12px;
+  background: var(--danger); cursor: ew-resize;
+  display: flex; align-items: center; justify-content: center;
+}
+.range-handle::after {
+  content: '⋮'; color: white; font-size: 14px;
+}
+
+/* Segments view */
+.segments { display: flex; gap: 2px; flex-wrap: wrap; margin: 12px 0; }
+.segment {
+  height: 8px; border-radius: 2px; min-width: 4px;
+  transition: opacity 0.2s;
+}
+.segment.keep { background: var(--success); }
+.segment.skip { background: var(--danger); opacity: 0.5; }
+
+/* Stats */
+.stats { display: flex; gap: 16px; flex-wrap: wrap; }
+.stat { text-align: center; }
+.stat-value { font-size: 18px; font-weight: 700; }
+.stat-label { font-size: 11px; color: var(--text-dim); }
+.stat-keep .stat-value { color: var(--success); }
+.stat-skip .stat-value { color: var(--danger); }
+
+.info { font-size: 12px; color: var(--text-dim); margin: 8px 0; }
+.hidden { display: none; }
+.controls { display: flex; gap: 8px; flex-wrap: wrap; margin: 12px 0; }
+</style>
+</head>
+<body>
+
+<h1>Spike 004: Frame Delete/Skip</h1>
+<p class="subtitle">Validates: marking frame ranges for exclusion from export</p>
+
+<div class="card">
+  <button class="btn" onclick="document.getElementById('fileInput').click()">Load Video</button>
+  <input type="file" id="fileInput" accept="video/*">
+</div>
+
+<div class="card hidden" id="mainUI">
+  <div class="info">Mark ranges to skip during export. Drag handles to adjust selection.</div>
+
+  <!-- Waveform-style range bar -->
+  <div class="range-bar" id="rangeBar">
+    <canvas id="barCanvas"></canvas>
+  </div>
+
+  <!-- Controls -->
+  <div class="controls">
+    <button class="btn btn-danger" id="markStartBtn">Mark Start</button>
+    <button class="btn btn-danger" id="markEndBtn">Mark End</button>
+    <button class="btn btn-warning" id="undoBtn">Undo Last</button>
+    <button class="btn btn-success" id="exportBtn">Preview Export</button>
+  </div>
+
+  <!-- Segments visualization -->
+  <div class="info">Export segments (green = keep, red = skip):</div>
+  <div class="segments" id="segments"></div>
+
+  <!-- Stats -->
+  <div class="stats">
+    <div class="stat stat-keep">
+      <div class="stat-value" id="keepDuration">0s</div>
+      <div class="stat-label">Keep</div>
+    </div>
+    <div class="stat stat-skip">
+      <div class="stat-value" id="skipDuration">0s</div>
+      <div class="stat-label">Skip</div>
+    </div>
+    <div class="stat">
+      <div class="stat-value" id="skipCount">0</div>
+      <div class="stat-label">Cuts</div>
+    </div>
+    <div class="stat">
+      <div class="stat-value" id="outputDuration">0s</div>
+      <div class="stat-label">Output</div>
+    </div>
+  </div>
+
+  <!-- Seek -->
+  <div style="margin-top:12px">
+    <input type="range" id="seekSlider" min="0" max="1000" value="0"
+      style="width:100%; accent-color:var(--accent)">
+    <div class="info" id="seekInfo">0:00 / 0:00</div>
+  </div>
+
+  <!-- Preview -->
+  <canvas id="previewCanvas" style="width:100%;border-radius:8px;display:block;margin-top:8px"></canvas>
+</div>
+
+<script type="module">
+let video = null;
+let duration = 0;
+let skipRanges = []; // [{start, end}]
+let markStart = null;
+
+document.getElementById('fileInput').addEventListener('change', async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+
+  video = document.createElement('video');
+  video.muted = true;
+  video.playsInline = true;
+  video.preload = 'auto';
+  video.src = URL.createObjectURL(file);
+  await new Promise(r => video.addEventListener('loadeddata', r, { once: true }));
+  duration = video.duration;
+
+  document.getElementById('mainUI').classList.remove('hidden');
+  await drawBarPreview();
+  renderSegments();
+  updateStats();
+  setupSeek();
+});
+
+async function drawBarPreview() {
+  const canvas = document.getElementById('barCanvas');
+  const container = document.getElementById('rangeBar');
+  canvas.width = container.clientWidth * 2;
+  canvas.height = 120;
+  const ctx = canvas.getContext('2d');
+
+  // Sample frames across video and draw as mini thumbnails
+  const numSamples = Math.min(60, Math.round(duration));
+  const sampleW = canvas.width / numSamples;
+
+  for (let i = 0; i < numSamples; i++) {
+    video.currentTime = (i / numSamples) * duration;
+    await new Promise(r => video.addEventListener('seeked', r, { once: true }));
+    ctx.drawImage(video, i * sampleW, 0, sampleW, canvas.height);
+  }
+
+  // Reset to start
+  video.currentTime = 0;
+  await new Promise(r => video.addEventListener('seeked', r, { once: true }));
+  drawPreview();
+}
+
+function renderSegments() {
+  const container = document.getElementById('segments');
+  container.innerHTML = '';
+
+  // Sort skip ranges
+  const sorted = [...skipRanges].sort((a, b) => a.start - b.start);
+
+  let pos = 0;
+  for (const range of sorted) {
+    if (range.start > pos) {
+      // Keep segment
+      const seg = document.createElement('div');
+      seg.className = 'segment keep';
+      seg.style.width = ((range.start - pos) / duration * 100) + '%';
+      container.appendChild(seg);
+    }
+    // Skip segment
+    const seg = document.createElement('div');
+    seg.className = 'segment skip';
+    seg.style.width = ((range.end - range.start) / duration * 100) + '%';
+    container.appendChild(seg);
+    pos = range.end;
+  }
+  // Trailing keep
+  if (pos < duration) {
+    const seg = document.createElement('div');
+    seg.className = 'segment keep';
+    seg.style.width = ((duration - pos) / duration * 100) + '%';
+    container.appendChild(seg);
+  }
+
+  // Draw skip overlays on bar canvas
+  const barCanvas = document.getElementById('barCanvas');
+  const ctx = barCanvas.getContext('2d');
+  // Redraw skip regions
+  for (const range of sorted) {
+    const x = (range.start / duration) * barCanvas.width;
+    const w = ((range.end - range.start) / duration) * barCanvas.width;
+    ctx.fillStyle = 'rgba(248, 113, 113, 0.4)';
+    ctx.fillRect(x, 0, w, barCanvas.height);
+  }
+}
+
+function updateStats() {
+  const skipTotal = skipRanges.reduce((sum, r) => sum + (r.end - r.start), 0);
+  const keepTotal = duration - skipTotal;
+
+  document.getElementById('keepDuration').textContent = keepTotal.toFixed(1) + 's';
+  document.getElementById('skipDuration').textContent = skipTotal.toFixed(1) + 's';
+  document.getElementById('skipCount').textContent = skipRanges.length.toString();
+  document.getElementById('outputDuration').textContent = keepTotal.toFixed(1) + 's';
+}
+
+function getCurrentTime() {
+  const slider = document.getElementById('seekSlider');
+  return (parseInt(slider.value) / 1000) * duration;
+}
+
+// Mark start
+document.getElementById('markStartBtn').addEventListener('click', () => {
+  markStart = getCurrentTime();
+  document.getElementById('markStartBtn').textContent = `Start: ${markStart.toFixed(1)}s ✓`;
+});
+
+// Mark end
+document.getElementById('markEndBtn').addEventListener('click', () => {
+  const end = getCurrentTime();
+  if (markStart === null) {
+    document.getElementById('seekInfo').textContent = 'Set start first!';
+    return;
+  }
+  if (end <= markStart) {
+    document.getElementById('seekInfo').textContent = 'End must be after start!';
+    return;
+  }
+
+  skipRanges.push({ start: markStart, end });
+  markStart = null;
+  document.getElementById('markStartBtn').textContent = 'Mark Start';
+
+  renderSegments();
+  updateStats();
+});
+
+// Undo
+document.getElementById('undoBtn').addEventListener('click', () => {
+  skipRanges.pop();
+  renderSegments();
+  updateStats();
+  // Redraw bar without overlays
+  drawBarPreview();
+});
+
+// Export preview (play only kept frames)
+document.getElementById('exportBtn').addEventListener('click', async () => {
+  const btn = document.getElementById('exportBtn');
+  btn.disabled = true;
+  btn.textContent = 'Playing...';
+
+  const sorted = [...skipRanges].sort((a, b) => a.start - b.start);
+  const fps = 10;
+  const step = 1 / fps;
+
+  for (let t = 0; t < duration; t += step) {
+    // Check if this time is in a skip range
+    const inSkip = sorted.some(r => t >= r.start && t < r.end);
+    if (inSkip) continue;
+
+    video.currentTime = t;
+    await new Promise(r => video.addEventListener('seeked', r, { once: true }));
+    drawPreview();
+    document.getElementById('seekSlider').value = Math.round((t / duration) * 1000);
+    document.getElementById('seekInfo').textContent =
+      `${formatTime(t)} / ${formatTime(duration)} (export preview)`;
+    await new Promise(r => setTimeout(r, 1000 / fps));
+  }
+
+  btn.disabled = false;
+  btn.textContent = 'Preview Export';
+});
+
+function drawPreview() {
+  const canvas = document.getElementById('previewCanvas');
+  const scale = Math.min(480 / video.videoWidth, 270 / video.videoHeight);
+  canvas.width = video.videoWidth * scale;
+  canvas.height = video.videoHeight * scale;
+  canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
+}
+
+function setupSeek() {
+  const slider = document.getElementById('seekSlider');
+  slider.addEventListener('input', async () => {
+    const t = (parseInt(slider.value) / 1000) * duration;
+    video.currentTime = t;
+    await new Promise(r => video.addEventListener('seeked', r, { once: true }));
+    drawPreview();
+    document.getElementById('seekInfo').textContent =
+      `${formatTime(t)} / ${formatTime(duration)}`;
+  });
+}
+
+function formatTime(s) {
+  const m = Math.floor(s / 60);
+  const sec = Math.floor(s % 60);
+  return `${m}:${sec.toString().padStart(2, '0')}`;
+}
+</script>
+</body>
+</html>

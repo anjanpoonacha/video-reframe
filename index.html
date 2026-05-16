@@ -7,68 +7,6 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <link rel="manifest" href="manifest.json">
 <title>Video Reframe</title>
-<style>
-* { margin: 0; padding: 0; box-sizing: border-box; }
-:root {
-  --bg: #0a0a0f;
-  --surface: #16161f;
-  --surface-2: #1e1e2a;
-  --border: #2a2a3a;
-  --text: #e8e8f0;
-  --text-dim: #8888a0;
-  --accent: #6366f1;
-  --accent-glow: rgba(99, 102, 241, 0.3);
-  --success: #34d399;
-  --warning: #fbbf24;
-  --error: #f87171;
-  --radius: 16px;
-  --safe-top: env(safe-area-inset-top, 0px);
-  --safe-bottom: env(safe-area-inset-bottom, 0px);
-}
-body {
-  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro', system-ui, sans-serif;
-  background: var(--bg); color: var(--text);
-  min-height: 100dvh; padding: var(--safe-top) 16px calc(var(--safe-bottom) + 16px);
-  -webkit-tap-highlight-color: transparent;
-}
-.header { text-align: center; padding: 24px 0 16px; }
-.header h1 { font-size: 24px; font-weight: 700; letter-spacing: -0.5px; }
-.header p { font-size: 13px; color: var(--text-dim); margin-top: 4px; }
-.card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; margin-bottom: 12px; }
-.btn { width: 100%; padding: 16px; border: none; border-radius: 12px; font-size: 16px; font-weight: 600; cursor: pointer; transition: all 0.15s; display: flex; align-items: center; justify-content: center; gap: 8px; }
-.btn-primary { background: var(--accent); color: white; }
-.btn-primary:active { transform: scale(0.97); opacity: 0.9; }
-.btn-primary:disabled { opacity: 0.4; pointer-events: none; }
-.btn-secondary { background: var(--surface-2); color: var(--text); border: 1px solid var(--border); }
-.btn-success { background: var(--success); color: #000; }
-.btn-success:active { transform: scale(0.97); opacity: 0.9; }
-.upload-zone { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 160px; border: 2px dashed var(--border); border-radius: var(--radius); cursor: pointer; transition: all 0.2s; }
-.upload-zone:active { border-color: var(--accent); background: var(--accent-glow); }
-.upload-icon { width: 52px; height: 52px; border-radius: 50%; background: var(--surface-2); display: flex; align-items: center; justify-content: center; margin-bottom: 12px; }
-.upload-icon svg { width: 26px; height: 26px; stroke: var(--accent); fill: none; }
-.upload-text { font-size: 16px; font-weight: 500; }
-.upload-hint { font-size: 12px; color: var(--text-dim); margin-top: 4px; }
-.progress-bar { width: 100%; height: 8px; background: var(--surface-2); border-radius: 4px; overflow: hidden; margin: 12px 0; }
-.progress-fill { height: 100%; background: linear-gradient(90deg, var(--accent), #8b5cf6); border-radius: 4px; transition: width 0.15s; width: 0%; }
-.status { font-size: 13px; color: var(--text-dim); text-align: center; min-height: 20px; margin-top: 8px; }
-.status.success { color: var(--success); }
-.status.error { color: var(--error); }
-.metrics { display: flex; justify-content: space-around; padding: 16px 0; }
-.metric { text-align: center; }
-.metric-value { font-size: 22px; font-weight: 700; color: var(--accent); }
-.metric-label { font-size: 11px; color: var(--text-dim); margin-top: 2px; }
-.pipeline-steps { display: flex; flex-direction: column; gap: 8px; margin: 16px 0; }
-.step-row { display: flex; align-items: center; gap: 12px; padding: 10px 12px; background: var(--surface-2); border-radius: 10px; }
-.step-icon { width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; background: var(--border); color: var(--text-dim); flex-shrink: 0; }
-.step-icon.active { background: var(--accent-glow); color: var(--accent); }
-.step-icon.done { background: rgba(52, 211, 153, 0.2); color: var(--success); }
-.step-label { font-size: 14px; flex: 1; }
-.step-time { font-size: 12px; color: var(--text-dim); }
-#fileInput { display: none; }
-.hidden { display: none; }
-.output-video { width: 100%; max-height: 400px; border-radius: 12px; background: #000; }
-@media (min-width: 768px) { body { max-width: 480px; margin: 0 auto; } }
-</style>
 </head>
 <body>
 
@@ -78,7 +16,7 @@ body {
 </div>
 
 <!-- Upload -->
-<div class="card">
+<div class="card" id="uploadCard">
   <div class="upload-zone" onclick="document.getElementById('fileInput').click()">
     <div class="upload-icon">
       <svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round">
@@ -94,37 +32,66 @@ body {
   <div class="status" id="fileStatus"></div>
 </div>
 
-<!-- Pipeline Steps -->
-<div class="card hidden" id="pipelineCard">
-  <div style="font-weight:600; margin-bottom:4px">Processing Pipeline</div>
-  <div class="pipeline-steps">
-    <div class="step-row">
-      <div class="step-icon" id="step1Icon">1</div>
-      <div class="step-label">Detect motion</div>
-      <div class="step-time" id="step1Time">—</div>
-    </div>
-    <div class="step-row">
-      <div class="step-icon" id="step2Icon">2</div>
-      <div class="step-label">Reframe to 9:16</div>
-      <div class="step-time" id="step2Time">—</div>
-    </div>
-    <div class="step-row">
-      <div class="step-icon" id="step3Icon">3</div>
-      <div class="step-label">Encode MP4</div>
-      <div class="step-time" id="step3Time">—</div>
-    </div>
-  </div>
+<!-- Analyze (motion detection) -->
+<div class="card hidden" id="analyzeCard">
+  <button class="btn btn-primary" id="analyzeBtn">Detect Motion</button>
   <div class="progress-bar">
-    <div class="progress-fill" id="progressFill"></div>
+    <div class="progress-fill" id="analyzeProgress"></div>
   </div>
-  <div class="status" id="pipelineStatus"></div>
+  <div class="status" id="analyzeStatus"></div>
 </div>
 
-<!-- Action -->
-<div class="card hidden" id="actionCard">
-  <button class="btn btn-primary" id="processBtn">
-    Reframe &amp; Export
-  </button>
+<!-- Editor: Filmstrip + Crop + Delete -->
+<div class="card hidden" id="editorCard">
+  <div class="editor-header">
+    <span class="editor-title">Edit Frames</span>
+    <span class="editor-hint">Adjust auto-detected crop or mark ranges to skip</span>
+  </div>
+
+  <!-- Preview with crop overlay -->
+  <div class="crop-container" id="cropContainer">
+    <canvas id="sourceCanvas"></canvas>
+    <div class="crop-overlay">
+      <div class="crop-region" id="cropRegion"></div>
+    </div>
+  </div>
+
+  <!-- Result preview (9:16) -->
+  <div class="result-preview">
+    <canvas id="resultCanvas"></canvas>
+  </div>
+
+  <!-- Filmstrip timeline -->
+  <div class="filmstrip-container">
+    <div class="filmstrip" id="filmstrip"></div>
+  </div>
+
+  <!-- Frame info + play -->
+  <div class="frame-info-bar">
+    <span id="frameCounter">Frame 0 / 0</span>
+    <button class="btn btn-small btn-secondary" id="playPreviewBtn">▶ Play</button>
+    <span id="frameTime">0:00</span>
+  </div>
+
+  <!-- Skip ranges -->
+  <div class="skip-section">
+    <div class="skip-bar" id="skipBar"></div>
+    <div class="skip-controls">
+      <button class="btn btn-small btn-danger" id="markStartBtn">Mark Start</button>
+      <button class="btn btn-small btn-danger" id="markEndBtn">Mark End</button>
+      <button class="btn btn-small btn-secondary" id="undoSkipBtn">Undo</button>
+    </div>
+    <div class="skip-stats" id="skipStats"></div>
+  </div>
+</div>
+
+<!-- Export -->
+<div class="card hidden" id="exportCard">
+  <button class="btn btn-primary" id="exportBtn">Export 9:16</button>
+  <div class="progress-bar">
+    <div class="progress-fill" id="exportProgress"></div>
+  </div>
+  <div class="status" id="exportStatus"></div>
 </div>
 
 <!-- Result -->
@@ -145,186 +112,9 @@ body {
       <div class="metric-label">Output</div>
     </div>
   </div>
-  <button class="btn btn-success" id="downloadBtn">
-    Save Video
-  </button>
+  <button class="btn btn-success" id="downloadBtn">Save Video</button>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/mp4box@0.5.2/dist/mp4box.all.min.js"></script>
-<script type="module">
-import { Muxer, ArrayBufferTarget } from 'https://cdn.jsdelivr.net/npm/mp4-muxer@5.1.3/+esm';
-
-const $ = id => document.getElementById(id);
-let videoEl = null;
-
-$('fileInput').addEventListener('change', async (e) => {
-  const file = e.target.files[0];
-  if (!file) return;
-
-  videoEl = document.createElement('video');
-  videoEl.muted = true;
-  videoEl.playsInline = true;
-  videoEl.preload = 'auto';
-  videoEl.src = URL.createObjectURL(file);
-  await new Promise(r => videoEl.addEventListener('loadeddata', r, { once: true }));
-
-  $('fileStatus').textContent = `${videoEl.videoWidth}x${videoEl.videoHeight} · ${videoEl.duration.toFixed(1)}s · ${(file.size/1024/1024).toFixed(1)}MB`;
-  $('fileStatus').className = 'status success';
-  $('pipelineCard').classList.remove('hidden');
-  $('actionCard').classList.remove('hidden');
-});
-
-$('processBtn').addEventListener('click', runPipeline);
-
-async function runPipeline() {
-  $('processBtn').disabled = true;
-  const totalStart = performance.now();
-  const srcW = videoEl.videoWidth, srcH = videoEl.videoHeight;
-  const duration = videoEl.duration, fps = 30;
-  const totalFrames = Math.round(duration * fps);
-  const outW = Math.min(1080, Math.round(srcH * 9/16));
-  const outH = Math.min(1920, srcH);
-  const encW = outW - (outW % 2), encH = outH - (outH % 2);
-
-  // Step 1: Motion Detection
-  setStep(1, 'active');
-  $('pipelineStatus').textContent = 'Analyzing motion...';
-  const t1 = performance.now();
-  const numSamples = Math.min(120, Math.round(duration * 2));
-  const positions = await detectMotion(videoEl, numSamples);
-  const smoothed = smoothPositions(positions);
-  $('step1Time').textContent = ((performance.now() - t1) / 1000).toFixed(1) + 's';
-  setStep(1, 'done');
-
-  // Step 2: Decode + Reframe + Encode
-  setStep(2, 'active');
-  $('pipelineStatus').textContent = 'Reframing...';
-  const t2 = performance.now();
-  const useWC = 'VideoEncoder' in window;
-  let muxer, encoder;
-
-  if (useWC) {
-    muxer = new Muxer({ target: new ArrayBufferTarget(), video: { codec: 'avc', width: encW, height: encH }, fastStart: 'in-memory' });
-    encoder = new VideoEncoder({ output: (chunk, meta) => muxer.addVideoChunk(chunk, meta), error: console.error });
-    encoder.configure({ codec: 'avc1.640028', width: encW, height: encH, bitrate: 4_000_000, framerate: fps });
-  }
-
-  const canvas = document.createElement('canvas');
-  canvas.width = encW; canvas.height = encH;
-  const ctx = canvas.getContext('2d');
-  const cropSrcW = srcH * (9/16);
-
-  for (let i = 0; i < totalFrames; i++) {
-    videoEl.currentTime = i / fps;
-    await new Promise(r => videoEl.addEventListener('seeked', r, { once: true }));
-    const posIdx = Math.min(smoothed.length - 1, Math.round(((i/fps) / duration) * smoothed.length));
-    const maxX = srcW - cropSrcW;
-    const srcX = Math.max(0, Math.min(maxX, maxX * smoothed[posIdx].x));
-    ctx.drawImage(videoEl, srcX, 0, cropSrcW, srcH, 0, 0, encW, encH);
-
-    if (useWC) {
-      const frame = new VideoFrame(canvas, { timestamp: i * (1_000_000 / fps), duration: 1_000_000 / fps });
-      encoder.encode(frame, { keyFrame: i % 60 === 0 });
-      frame.close();
-    }
-
-    const pct = Math.round(((i + 1) / totalFrames) * 100);
-    $('progressFill').style.width = (30 + pct * 0.6) + '%';
-    $('pipelineStatus').textContent = `Reframing... ${i+1}/${totalFrames}`;
-    if (i % 5 === 0) await new Promise(r => setTimeout(r, 0));
-  }
-
-  $('step2Time').textContent = ((performance.now() - t2) / 1000).toFixed(1) + 's';
-  setStep(2, 'done');
-
-  // Step 3: Finalize
-  setStep(3, 'active');
-  $('pipelineStatus').textContent = 'Finalizing...';
-  $('progressFill').style.width = '92%';
-  const t3 = performance.now();
-  let blob;
-  if (useWC) {
-    await encoder.flush();
-    muxer.finalize();
-    blob = new Blob([muxer.target.buffer], { type: 'video/mp4' });
-  } else {
-    blob = await encodeFallback(videoEl, smoothed, encW, encH, fps, duration);
-  }
-  $('step3Time').textContent = ((performance.now() - t3) / 1000).toFixed(1) + 's';
-  setStep(3, 'done');
-  $('progressFill').style.width = '100%';
-
-  // Show result
-  const totalTime = ((performance.now() - totalStart) / 1000).toFixed(1);
-  $('pipelineStatus').textContent = 'Done!';
-  $('pipelineStatus').className = 'status success';
-  const url = URL.createObjectURL(blob);
-  $('outputVideo').src = url;
-  $('metricSize').textContent = (blob.size / 1024 / 1024).toFixed(1) + 'MB';
-  $('metricTotal').textContent = totalTime + 's';
-  $('metricRes').textContent = `${encW}x${encH}`;
-  $('resultCard').classList.remove('hidden');
-  $('downloadBtn').onclick = () => { const a = document.createElement('a'); a.href = url; a.download = 'reframed_9x16.mp4'; a.click(); };
-  $('processBtn').disabled = false;
-}
-
-async function encodeFallback(video, positions, w, h, fps, dur) {
-  const c = document.createElement('canvas'); c.width = w; c.height = h;
-  const ctx = c.getContext('2d');
-  const stream = c.captureStream(fps);
-  const rec = new MediaRecorder(stream, { mimeType: 'video/webm; codecs=vp8', videoBitsPerSecond: 4_000_000 });
-  const chunks = []; rec.ondataavailable = e => chunks.push(e.data); rec.start();
-  const total = Math.round(dur * fps), srcH = video.videoHeight, cropW = srcH * (9/16), srcW = video.videoWidth;
-  for (let i = 0; i < total; i++) {
-    video.currentTime = i / fps;
-    await new Promise(r => video.addEventListener('seeked', r, { once: true }));
-    const pi = Math.min(positions.length-1, Math.round(((i/fps)/dur)*positions.length));
-    const mx = srcW - cropW;
-    ctx.drawImage(video, mx * positions[pi].x, 0, cropW, srcH, 0, 0, w, h);
-    if (i % 5 === 0) await new Promise(r => setTimeout(r, 0));
-  }
-  rec.stop(); await new Promise(r => rec.onstop = r);
-  return new Blob(chunks, { type: 'video/webm' });
-}
-
-async function detectMotion(video, n) {
-  const pos = [], step = video.duration / n;
-  const dw = 160, dh = Math.round(160 * (video.videoHeight / video.videoWidth));
-  const c = document.createElement('canvas'); c.width = dw; c.height = dh;
-  const ctx = c.getContext('2d', { willReadFrequently: true });
-  let prev = null;
-  for (let i = 0; i < n; i++) {
-    video.currentTime = i * step;
-    await new Promise(r => video.addEventListener('seeked', r, { once: true }));
-    ctx.drawImage(video, 0, 0, dw, dh);
-    const d = ctx.getImageData(0, 0, dw, dh);
-    if (prev) {
-      let sx = 0, cnt = 0;
-      for (let y = 0; y < dh; y++) for (let x = 0; x < dw; x++) {
-        const idx = (y * dw + x) * 4;
-        const diff = Math.abs(d.data[idx]-prev.data[idx]) + Math.abs(d.data[idx+1]-prev.data[idx+1]) + Math.abs(d.data[idx+2]-prev.data[idx+2]);
-        if (diff > 60) { sx += x; cnt++; }
-      }
-      pos.push({ time: i*step, x: cnt > 50 ? (sx/cnt)/dw : (pos[pos.length-1]?.x ?? 0.5) });
-    } else { pos.push({ time: 0, x: 0.5 }); }
-    prev = d;
-    $('progressFill').style.width = Math.round((i/n)*30) + '%';
-  }
-  return pos;
-}
-
-function smoothPositions(p, w = 5) {
-  return p.map((v, i) => {
-    const s = Math.max(0, i-Math.floor(w/2)), e = Math.min(p.length, i+Math.ceil(w/2));
-    return { time: v.time, x: p.slice(s,e).reduce((a,b) => a+b.x, 0)/(e-s) };
-  });
-}
-
-function setStep(n, state) {
-  const icon = $(`step${n}Icon`);
-  icon.className = 'step-icon ' + state;
-  if (state === 'done') icon.textContent = '✓';
-}
-</script>
+<script type="module" src="./src/main.ts"></script>
 </body>
 </html>

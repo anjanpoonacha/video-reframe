@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Spike 003b: Keyframe Crop</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+:root {
+  --bg: #0a0a0f;
+  --surface: #16161f;
+  --surface-2: #1e1e2a;
+  --border: #2a2a3a;
+  --text: #e8e8f0;
+  --text-dim: #8888a0;
+  --accent: #6366f1;
+  --accent-glow: rgba(99, 102, 241, 0.3);
+  --success: #34d399;
+  --warning: #fbbf24;
+}
+body {
+  font-family: -apple-system, system-ui, sans-serif;
+  background: var(--bg); color: var(--text);
+  padding: 16px; max-width: 480px; margin: 0 auto;
+}
+h1 { font-size: 18px; margin-bottom: 4px; }
+.subtitle { color: var(--text-dim); font-size: 12px; margin-bottom: 16px; }
+.card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 12px; padding: 16px; margin-bottom: 12px;
+}
+.btn {
+  padding: 10px 16px; border: none; border-radius: 8px;
+  font-size: 13px; font-weight: 600; cursor: pointer;
+  background: var(--accent); color: white;
+}
+.btn-small { padding: 6px 12px; font-size: 11px; }
+.btn-success { background: var(--success); color: #000; }
+.btn-warning { background: var(--warning); color: #000; }
+#fileInput { display: none; }
+
+/* Preview */
+.preview-row { display: flex; gap: 12px; align-items: flex-start; margin-bottom: 12px; }
+#sourceCanvas { width: 100%; border-radius: 8px; display: block; }
+#resultCanvas { border-radius: 8px; background: #000; }
+
+/* Timeline with keyframes */
+.timeline-wrapper { position: relative; margin: 16px 0; }
+#seekSlider { width: 100%; accent-color: var(--accent); }
+.keyframe-markers {
+  position: relative; height: 20px; margin-top: 4px;
+}
+.keyframe-dot {
+  position: absolute; top: 2px;
+  width: 12px; height: 12px; border-radius: 50%;
+  background: var(--success); border: 2px solid var(--bg);
+  transform: translateX(-50%); cursor: pointer;
+  transition: transform 0.1s;
+}
+.keyframe-dot:hover { transform: translateX(-50%) scale(1.3); }
+.keyframe-dot.active { background: var(--accent); box-shadow: 0 0 6px var(--accent-glow); }
+
+/* Keyframe list */
+.kf-list { max-height: 200px; overflow-y: auto; }
+.kf-item {
+  display: flex; align-items: center; gap: 8px;
+  padding: 6px 8px; border-radius: 6px; margin-bottom: 4px;
+  background: var(--surface-2); font-size: 12px;
+}
+.kf-item.active { border: 1px solid var(--accent); }
+.kf-time { font-weight: 600; min-width: 50px; }
+.kf-pos { color: var(--text-dim); flex: 1; }
+.kf-remove { cursor: pointer; color: var(--text-dim); padding: 2px 6px; }
+.kf-remove:hover { color: #f87171; }
+
+/* Interpolation preview */
+.interp-bar {
+  width: 100%; height: 24px; background: var(--surface-2);
+  border-radius: 4px; margin: 8px 0; position: relative; overflow: hidden;
+}
+.interp-fill {
+  position: absolute; top: 0; height: 100%;
+  background: linear-gradient(90deg, var(--accent), #8b5cf6);
+  border-radius: 4px; transition: left 0.1s, width 0.05s;
+}
+.interp-cursor {
+  position: absolute; top: 0; height: 100%; width: 2px;
+  background: white;
+}
+
+.info { font-size: 12px; color: var(--text-dim); margin: 8px 0; text-align: center; }
+.hidden { display: none; }
+</style>
+</head>
+<body>
+
+<h1>Spike 003b: Keyframe Crop</h1>
+<p class="subtitle">Validates: set keyframes → interpolation creates smooth crop path</p>
+
+<div class="card">
+  <button class="btn" onclick="document.getElementById('fileInput').click()">Load Video</button>
+  <input type="file" id="fileInput" accept="video/*">
+</div>
+
+<div class="card hidden" id="editUI">
+  <div class="info">Set crop position, then click "Add Keyframe" to lock it at this time</div>
+
+  <canvas id="sourceCanvas"></canvas>
+
+  <!-- Position control -->
+  <div style="margin:12px 0">
+    <label style="font-size:12px;color:var(--text-dim)">Crop Position</label>
+    <input type="range" id="posSlider" min="0" max="100" value="50"
+      style="width:100%; accent-color:var(--accent)">
+  </div>
+
+  <!-- Result preview -->
+  <div style="text-align:center; margin-bottom:12px">
+    <canvas id="resultCanvas"></canvas>
+  </div>
+
+  <!-- Timeline + keyframe markers -->
+  <div class="timeline-wrapper">
+    <label style="font-size:12px;color:var(--text-dim)">Timeline</label>
+    <input type="range" id="seekSlider" min="0" max="1000" value="500">
+    <div class="keyframe-markers" id="kfMarkers"></div>
+  </div>
+
+  <!-- Interpolation visualization -->
+  <div class="info">Interpolated crop path:</div>
+  <div class="interp-bar" id="interpBar">
+    <div class="interp-fill" id="interpFill"></div>
+    <div class="interp-cursor" id="interpCursor"></div>
+  </div>
+
+  <!-- Controls -->
+  <div style="display:flex; gap:8px; margin:12px 0; flex-wrap:wrap">
+    <button class="btn btn-success btn-small" id="addKfBtn">+ Add Keyframe</button>
+    <button class="btn btn-warning btn-small" id="playBtn">▶ Play Preview</button>
+  </div>
+
+  <!-- Keyframe list -->
+  <div class="kf-list" id="kfList"></div>
+  <div class="info" id="kfInfo">No keyframes set</div>
+</div>
+
+<script type="module">
+let video = null;
+let keyframes = []; // { time: seconds, position: 0-1 }
+let currentTime = 0;
+let currentPos = 0.5;
+let playing = false;
+
+document.getElementById('fileInput').addEventListener('change', async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+
+  video = document.createElement('video');
+  video.muted = true;
+  video.playsInline = true;
+  video.preload = 'auto';
+  video.src = URL.createObjectURL(file);
+  await new Promise(r => video.addEventListener('loadeddata', r, { once: true }));
+
+  document.getElementById('editUI').classList.remove('hidden');
+  document.getElementById('seekSlider').max = Math.round(video.duration * 100);
+  document.getElementById('seekSlider').value = Math.round(video.duration * 50);
+
+  // Start mid-video
+  currentTime = video.duration / 2;
+  video.currentTime = currentTime;
+  await new Promise(r => video.addEventListener('seeked', r, { once: true }));
+  drawFrame();
+});
+
+function drawFrame() {
+  const srcCanvas = document.getElementById('sourceCanvas');
+  srcCanvas.width = video.videoWidth;
+  srcCanvas.height = video.videoHeight;
+  srcCanvas.getContext('2d').drawImage(video, 0, 0);
+
+  // Draw crop overlay on source
+  const ctx = srcCanvas.getContext('2d');
+  const cropW = video.videoHeight * (9 / 16);
+  const maxX = video.videoWidth - cropW;
+  const cropLeft = maxX * currentPos;
+
+  // Dim areas outside crop
+  ctx.fillStyle = 'rgba(0,0,0,0.5)';
+  ctx.fillRect(0, 0, cropLeft, video.videoHeight);
+  ctx.fillRect(cropLeft + cropW, 0, video.videoWidth - cropLeft - cropW, video.videoHeight);
+
+  // Crop border
+  ctx.strokeStyle = '#6366f1';
+  ctx.lineWidth = 3;
+  ctx.strokeRect(cropLeft, 0, cropW, video.videoHeight);
+
+  // Result
+  const resCanvas = document.getElementById('resultCanvas');
+  const resH = 200;
+  const resW = resH * (9 / 16);
+  resCanvas.width = resW;
+  resCanvas.height = resH;
+  resCanvas.getContext('2d').drawImage(video, cropLeft, 0, cropW, video.videoHeight, 0, 0, resW, resH);
+
+  updateInterpViz();
+}
+
+function getInterpolatedPosition(time) {
+  if (keyframes.length === 0) return 0.5;
+  if (keyframes.length === 1) return keyframes[0].position;
+
+  const sorted = [...keyframes].sort((a, b) => a.time - b.time);
+
+  // Before first keyframe
+  if (time <= sorted[0].time) return sorted[0].position;
+  // After last keyframe
+  if (time >= sorted[sorted.length - 1].time) return sorted[sorted.length - 1].position;
+
+  // Find surrounding keyframes and lerp
+  for (let i = 0; i < sorted.length - 1; i++) {
+    if (time >= sorted[i].time && time <= sorted[i + 1].time) {
+      const t = (time - sorted[i].time) / (sorted[i + 1].time - sorted[i].time);
+      // Smooth interpolation (ease in-out)
+      const smooth = t * t * (3 - 2 * t);
+      return sorted[i].position + (sorted[i + 1].position - sorted[i].position) * smooth;
+    }
+  }
+  return 0.5;
+}
+
+function updateInterpViz() {
+  const bar = document.getElementById('interpBar');
+  const fill = document.getElementById('interpFill');
+  const cursor = document.getElementById('interpCursor');
+
+  if (keyframes.length >= 2) {
+    const pos = getInterpolatedPosition(currentTime);
+    fill.style.left = '0';
+    fill.style.width = (pos * 100) + '%';
+  } else {
+    fill.style.left = '0';
+    fill.style.width = (currentPos * 100) + '%';
+  }
+
+  cursor.style.left = ((currentTime / video.duration) * 100) + '%';
+}
+
+function renderKeyframeMarkers() {
+  const container = document.getElementById('kfMarkers');
+  container.innerHTML = '';
+  keyframes.forEach((kf, i) => {
+    const dot = document.createElement('div');
+    dot.className = 'keyframe-dot';
+    dot.style.left = ((kf.time / video.duration) * 100) + '%';
+    dot.title = `${kf.time.toFixed(1)}s → ${Math.round(kf.position * 100)}%`;
+    dot.addEventListener('click', () => {
+      currentTime = kf.time;
+      currentPos = kf.position;
+      document.getElementById('seekSlider').value = Math.round(kf.time * 100);
+      document.getElementById('posSlider').value = Math.round(kf.position * 100);
+      video.currentTime = kf.time;
+      video.addEventListener('seeked', () => drawFrame(), { once: true });
+    });
+    container.appendChild(dot);
+  });
+}
+
+function renderKeyframeList() {
+  const list = document.getElementById('kfList');
+  const sorted = [...keyframes].sort((a, b) => a.time - b.time);
+  list.innerHTML = sorted.map((kf, i) => `
+    <div class="kf-item${Math.abs(kf.time - currentTime) < 0.1 ? ' active' : ''}">
+      <span class="kf-time">${kf.time.toFixed(1)}s</span>
+      <span class="kf-pos">pos: ${Math.round(kf.position * 100)}%</span>
+      <span class="kf-remove" data-idx="${keyframes.indexOf(kf)}">×</span>
+    </div>
+  `).join('');
+
+  list.querySelectorAll('.kf-remove').forEach(el => {
+    el.addEventListener('click', () => {
+      keyframes.splice(parseInt(el.dataset.idx), 1);
+      renderKeyframeMarkers();
+      renderKeyframeList();
+      drawFrame();
+    });
+  });
+
+  document.getElementById('kfInfo').textContent =
+    `${keyframes.length} keyframe${keyframes.length !== 1 ? 's' : ''} set`;
+}
+
+// Position slider
+document.getElementById('posSlider').addEventListener('input', (e) => {
+  currentPos = e.target.value / 100;
+
+  // If we have keyframes, use interpolation for non-keyframed positions
+  if (keyframes.length >= 2) {
+    // Show what interpolation gives vs manual override
+  }
+  drawFrame();
+});
+
+// Seek slider
+document.getElementById('seekSlider').addEventListener('input', async (e) => {
+  currentTime = e.target.value / 100;
+  video.currentTime = currentTime;
+  await new Promise(r => video.addEventListener('seeked', r, { once: true }));
+
+  // If keyframes exist, snap position to interpolated value
+  if (keyframes.length >= 1) {
+    currentPos = getInterpolatedPosition(currentTime);
+    document.getElementById('posSlider').value = Math.round(currentPos * 100);
+  }
+
+  drawFrame();
+});
+
+// Add keyframe
+document.getElementById('addKfBtn').addEventListener('click', () => {
+  // Remove existing keyframe at this time (±0.1s)
+  keyframes = keyframes.filter(kf => Math.abs(kf.time - currentTime) > 0.1);
+  keyframes.push({ time: currentTime, position: currentPos });
+  renderKeyframeMarkers();
+  renderKeyframeList();
+  drawFrame();
+});
+
+// Play preview
+document.getElementById('playBtn').addEventListener('click', async () => {
+  if (playing) { playing = false; return; }
+  playing = true;
+  document.getElementById('playBtn').textContent = '⏸ Stop';
+
+  const fps = 10;
+  const step = 1 / fps;
+  const startTime = 0;
+
+  for (let t = startTime; t < video.duration && playing; t += step) {
+    currentTime = t;
+    currentPos = getInterpolatedPosition(t);
+    document.getElementById('seekSlider').value = Math.round(t * 100);
+    document.getElementById('posSlider').value = Math.round(currentPos * 100);
+
+    video.currentTime = t;
+    await new Promise(r => video.addEventListener('seeked', r, { once: true }));
+    drawFrame();
+    await new Promise(r => setTimeout(r, 1000 / fps));
+  }
+
+  playing = false;
+  document.getElementById('playBtn').textContent = '▶ Play Preview';
+});
+</script>
+</body>
+</html>
