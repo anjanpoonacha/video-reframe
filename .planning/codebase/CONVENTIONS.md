@@ -5,138 +5,147 @@
 ## Naming Patterns
 
 **Files:**
-- Lowercase with hyphens for config/entry: `serve.ts`, `index.ts`, `index.html`
-- Lowercase for source: `main.ts`, `styles.css`
-- Uppercase for metadata: `README.md`, `CLAUDE.md`
+- Lowercase with hyphens for config: `package.json`, `bun.lock`
+- Lowercase for source: `main.ts`, `styles.css`, `serve.ts`
+- Uppercase for documentation: `README.md`, `CLAUDE.md`
 
 **Functions:**
-- camelCase for all functions: `runPipeline`, `detectMotion`, `smoothPositions`, `setStep`, `encodeFallback`
-- Verb-first naming: `detect*`, `smooth*`, `encode*`, `run*`, `set*`
+- camelCase: `goToFrame`, `drawCropEditor`, `setupCropDrag`, `renderFilmstrip`
+- Verb-first naming: `get*`, `render*`, `setup*`, `apply*`, `detect*`
 
 **Variables:**
-- camelCase: `videoEl`, `srcW`, `srcH`, `outW`, `encW`, `totalFrames`
-- Short abbreviations for dimensions/math: `w`, `h`, `dw`, `dh`, `fps`, `dur`, `ctx`
-- Descriptive for domain objects: `positions`, `smoothed`, `muxer`, `encoder`
+- camelCase: `currentIdx`, `skipRanges`, `markStartTime`, `videoEl`
+- Short abbreviations accepted: `ctx`, `dw`, `dh`, `srcX`, `encW`
+- Constants use `const` but not UPPER_SNAKE_CASE
 
 **Types/Interfaces:**
-- PascalCase with domain prefix: `MotionPosition`
-- Defined at module top before usage
-
-**CSS:**
-- BEM-like flat naming with hyphens: `.upload-zone`, `.step-icon`, `.btn-primary`
-- CSS custom properties (variables) use `--` prefix: `--bg`, `--surface`, `--accent`
+- PascalCase: `FrameData`
+- `interface` keyword preferred over `type` for object shapes
 
 ## Code Style
 
 **Formatting:**
-- No dedicated formatter configured (no Prettier/Biome)
-- 2-space indentation throughout
-- Semicolons required
-- Double quotes for imports, backtick templates for dynamic strings
-- Single-line expressions for short statements
+- No dedicated formatter configured (no Prettier, Biome, or ESLint)
+- 2-space indentation in TypeScript and CSS
+- Double quotes for strings in TypeScript
+- Semicolons always used
+- Trailing commas on multiline constructs
 
-**Linting:**
-- No linter configured (no ESLint/Biome)
-- TypeScript strict mode enforces type safety via `tsconfig.json`
+**Line Length:**
+- No enforced limit; long lines observed (100+ chars for DOM operations)
 
-**TypeScript Strictness:**
-- `strict: true` enabled
-- `noUncheckedIndexedAccess: true` — forces `?.` or `?? default` on indexed access
-- `noImplicitOverride: true`
-- `noFallthroughCasesInSwitch: true`
-- `verbatimModuleSyntax: true` — requires explicit `type` import annotations
+**Braces:**
+- Opening brace on same line
+- Single-line arrow functions without braces where concise
 
 ## Import Organization
 
 **Order:**
-1. External packages (`mp4-muxer`)
-2. Local CSS/assets (`./styles.css`)
+1. Third-party packages (`mp4-muxer`)
+2. Local files (`./styles.css`)
+
+**Style:**
+- Named imports: `import { Muxer, ArrayBufferTarget } from "mp4-muxer"`
+- Side-effect imports for CSS: `import "./styles.css"`
+- Default imports for HTML: `import index from "./index.html"`
 
 **Path Style:**
 - Relative paths with `./` prefix
 - No path aliases configured
-- Direct `.ts` extension not used in imports (bundler resolves)
+
+## TypeScript Conventions
+
+**Strict Mode:** Enabled with additional checks:
+- `noFallthroughCasesInSwitch: true`
+- `noUncheckedIndexedAccess: true`
+- `noImplicitOverride: true`
+- `verbatimModuleSyntax: true`
+
+**Relaxed:**
+- `noUnusedLocals: false`
+- `noUnusedParameters: false`
+
+**Non-null assertions:**
+- Used freely on DOM queries: `document.getElementById(id)!`
+- Used on array access: `frames[i]!.skipped`
+
+**Type annotations:**
+- Return types omitted on most functions (inferred)
+- Parameter types always explicit
+- Inline type assertions: `(e.target as HTMLInputElement)`
+
+**Nullish coalescing:**
+- Used with `??` for defaults: `smoothed[i]?.x ?? 0.5`
 
 ## Error Handling
 
 **Patterns:**
-- Guard clauses with early return: `if (!file) return;`, `if (!videoEl) return;`
-- Non-null assertion (`!`) on DOM queries via `$()` helper
-- `console.error` passed directly to WebCodecs error callbacks
-- Optional chaining with nullish coalescing for array access: `positions[pi]?.x ?? 0.5`
-- No try/catch blocks — errors propagate naturally (browser-only app)
+- Early returns for guard clauses: `if (!videoEl) return;`
+- No try/catch blocks in the codebase
+- `console.error` passed directly as error callback: `error: console.error`
+- No error boundary or global error handler
 
-**DOM Access:**
-- Central `$()` helper with non-null assertion: `const $ = (id: string) => document.getElementById(id)!;`
-- Type casts for specific element types: `(e.target as HTMLInputElement)`
+**Async errors:**
+- No explicit async error handling
+- Promise rejections unhandled
 
-## Logging
+## DOM Access Pattern
 
-**Framework:** Browser console only
-
-**Patterns:**
-- `console.log` for dev server startup messages (`serve.ts`)
-- `console.error` as error handler callback for WebCodecs
-- No structured logging — frontend-only app
-
-## Comments
-
-**When to Comment:**
-- Step markers in pipelines: `// Step 1: Motion Detection`, `// Step 2: Decode + Reframe + Encode`
-- Inline notes for unused files: `// This file is unused — see serve.ts`
-- No JSDoc/TSDoc used
-
-**Style:**
-- `//` single-line comments only
-- Comments mark logical sections, not explain obvious code
-
-## Function Design
-
-**Size:**
-- `runPipeline` is the largest (~130 lines) — orchestrates the full workflow
-- Helper functions kept focused: `detectMotion`, `smoothPositions`, `setStep`, `encodeFallback`
-
-**Parameters:**
-- Primitives passed individually: `(video, n)`, `(video, positions, w, h, fps, dur)`
-- Default parameters via `=`: `smoothPositions(p, w = 5)`
-
-**Return Values:**
-- `Promise<Blob>` for async encode operations
-- Arrays of typed objects: `MotionPosition[]`
-- Void for side-effect functions: `setStep`, `runPipeline`
+**Helper function:**
+```typescript
+const $ = (id: string) => document.getElementById(id)!;
+```
+- All DOM access through this `$` shorthand with non-null assertion
+- Type casting at usage site: `($("exportBtn") as HTMLButtonElement).disabled = true`
 
 ## Module Design
 
+**Single-file architecture:**
+- All application logic in one file (`src/main.ts`, 532 lines)
+- No module splitting or barrel files
+- Top-level state variables with `let`
+- Functions defined at module scope
+
 **Exports:**
-- Single-file application — no inter-module exports in `src/main.ts`
-- `serve.ts` uses HTML import pattern (Bun-specific)
-- `index.ts` exports empty `{}` (placeholder file)
+- No exports from `src/main.ts` (side-effect module)
+- `serve.ts` has no exports (entry point)
 
-**Barrel Files:**
-- Not used (single source file)
+## Comments
 
-## DOM Interaction Patterns
+**Section dividers:**
+```typescript
+// --- Section Name ---
+```
 
-**Event Binding:**
-- `addEventListener` with async handlers
-- `{ once: true }` option for one-shot events (seeked, loadeddata)
-- Direct `onclick` assignment for simple handlers
+**Inline comments:**
+- Brief explanations for non-obvious logic
+- No JSDoc/TSDoc documentation
+- No function documentation
 
-**UI State Updates:**
-- Direct DOM manipulation: `el.textContent`, `el.className`, `el.classList.remove`
-- No reactive framework — imperative style
-- Progress shown via style.width manipulation on progress bar element
+## CSS Conventions
 
-## Async Patterns
+**Architecture:**
+- Single CSS file: `src/styles.css`
+- CSS custom properties (variables) in `:root`
+- No CSS modules, no CSS-in-JS, no preprocessor
 
-**Promise Creation:**
-- Inline `new Promise(r => ...)` wrapping event listeners for sequential flow
-- `await` for all async steps in pipeline
-- `setTimeout(r, 0)` yield pattern every N frames to keep UI responsive
+**Naming:**
+- BEM-like but simplified: `.crop-container`, `.frame-info-bar`
+- Utility classes: `.hidden`, `.status.success`
+- Component-based: `.card`, `.btn`, `.btn-primary`
 
-**No Concurrency:**
-- All frame processing is sequential (seek → draw → encode)
-- Single processing pipeline, UI disabled during execution
+**Patterns:**
+- Mobile-first with `@media (min-width: 768px)` breakpoint
+- CSS variables for theming: `--bg`, `--surface`, `--accent`
+- `env()` for safe area insets (PWA/mobile)
+
+## Linting & Formatting
+
+**Tools configured:** None
+
+**No linter or formatter is configured.** The `.gitignore` includes `.eslintcache` but no ESLint config exists. Code style is maintained manually.
+
+**TypeScript compiler** serves as the only static analysis via `strict: true` in `tsconfig.json`.
 
 ---
 

@@ -6,134 +6,141 @@
 
 ```
 video-reframe/
-├── .github/
-│   └── workflows/
-│       └── deploy.yml    # GitHub Pages CI/CD
-├── .planning/            # GSD planning artifacts
-│   └── codebase/         # Auto-generated codebase analysis
-├── dist/                 # Build output (gitignored but present)
-│   ├── index.html
-│   ├── index-*.js        # Bundled JS (hashed)
-│   ├── index-*.css       # Bundled CSS (hashed)
-│   └── manifest-*.json   # Copied manifest (hashed)
-├── src/
-│   ├── main.ts           # All application logic
-│   └── styles.css        # Application styles
-├── index.html            # App shell / entry HTML
-├── index.ts              # Unused placeholder
-├── manifest.json         # PWA web app manifest
-├── serve.ts              # Bun dev server
-├── package.json          # Project config & scripts
-├── tsconfig.json         # TypeScript configuration
-├── bun.lock              # Dependency lockfile
-├── CLAUDE.md             # AI assistant instructions
-└── README.md             # Project documentation
+├── .github/workflows/   # CI/CD pipeline
+│   └── deploy.yml       # GitHub Pages deployment
+├── dist/                # Build output (gitignored, checked in currently)
+├── src/                 # Application source
+│   ├── main.ts          # All application logic
+│   └── styles.css       # All application styles
+├── index.html           # App shell & Bun build entry point
+├── index.ts             # Unused placeholder (see serve.ts)
+├── serve.ts             # Bun dev server with HMR
+├── manifest.json        # PWA web app manifest
+├── package.json         # Dependencies & scripts
+├── tsconfig.json        # TypeScript configuration
+├── bun.lock             # Bun lockfile
+├── CLAUDE.md            # AI assistant instructions
+└── README.md            # Project documentation
 ```
 
 ## Directory Purposes
 
 **`src/`:**
-- Purpose: Application source code
+- Purpose: Frontend application source code
 - Contains: TypeScript logic and CSS styles
-- Key files: `main.ts` (entire app logic), `styles.css` (all styles)
-
-**`.github/workflows/`:**
-- Purpose: CI/CD automation
-- Contains: GitHub Actions workflow definitions
-- Key files: `deploy.yml` (build + deploy to GitHub Pages)
+- Key files: `main.ts` (all app logic), `styles.css` (all styles)
 
 **`dist/`:**
 - Purpose: Production build output
-- Contains: Bundled, hashed static assets ready for deployment
-- Generated: Yes (by `bun run build`)
-- Committed: No (in `.gitignore`, but currently tracked)
+- Contains: Bundled JS, CSS, HTML, and manifest
+- Generated: Yes (by `bun build ./index.html --outdir ./dist`)
+- Committed: Yes (for GitHub Pages deployment)
 
-**`.planning/`:**
-- Purpose: GSD planning and codebase analysis documents
-- Contains: Auto-generated markdown analysis files
-- Generated: Yes (by GSD tooling)
+**`.github/workflows/`:**
+- Purpose: GitHub Actions CI/CD
+- Contains: Deployment workflow
+- Key files: `deploy.yml` (build + deploy to GitHub Pages)
 
 ## Key File Locations
 
 **Entry Points:**
-- `index.html`: Browser entry — loads `src/main.ts` as ES module
-- `serve.ts`: Dev server entry — `bun --hot serve.ts`
-- `src/main.ts`: Application logic entry — registers DOM event listeners on load
+- `index.html`: Browser entry and Bun bundler entry point
+- `serve.ts`: Dev server entry (`bun --hot serve.ts`)
 
 **Configuration:**
-- `package.json`: Scripts, dependencies, project metadata
-- `tsconfig.json`: TypeScript compiler options (strict, ESNext, bundler mode)
-- `manifest.json`: PWA installability metadata
+- `package.json`: Dependencies, scripts
+- `tsconfig.json`: TypeScript strict mode, ESNext target, bundler resolution
+- `manifest.json`: PWA metadata (name, icons, display mode)
 
 **Core Logic:**
-- `src/main.ts`: Motion detection, frame reframing, video encoding (entire pipeline)
+- `src/main.ts`: Motion detection, crop editing, video encoding, all UI interaction
 
-**Styling:**
-- `src/styles.css`: Complete application stylesheet (CSS custom properties, mobile-first)
+**Styles:**
+- `src/styles.css`: Complete application styling (dark theme, mobile-first, responsive)
 
 **Testing:**
-- No test files exist currently
+- None — no test files or test configuration exist
 
 ## Naming Conventions
 
 **Files:**
-- `kebab-case.ts`: Source files (e.g., `main.ts`, `styles.css`)
-- `UPPERCASE.md`: Documentation/planning files (e.g., `CLAUDE.md`, `README.md`)
-- `camelCase.json`: Config files (e.g., `manifest.json`, `tsconfig.json`)
+- kebab-case for config files: `package.json`, `manifest.json`
+- camelCase for TypeScript source: `main.ts`, `serve.ts`
+- Standard dotfiles: `.gitignore`, `tsconfig.json`
 
 **Directories:**
-- `lowercase`: All directories use lowercase (e.g., `src/`, `dist/`)
+- Lowercase: `src/`, `dist/`
 
 **Functions (in `src/main.ts`):**
-- `camelCase`: All functions (`runPipeline`, `detectMotion`, `smoothPositions`, `setStep`, `encodeFallback`)
+- camelCase: `detectMotion`, `smoothPositions`, `renderFilmstrip`, `goToFrame`, `drawCropEditor`
+- Verb-first naming: `render*`, `apply*`, `setup*`, `get*`
 
 **Interfaces:**
-- `PascalCase`: TypeScript interfaces (`MotionPosition`)
+- PascalCase: `FrameData`
 
-**Constants:**
-- `camelCase`: Local constants within functions (`totalFrames`, `encW`, `encH`)
+**DOM IDs:**
+- camelCase: `fileInput`, `analyzeBtn`, `cropContainer`, `exportProgress`
 
 ## Where to Add New Code
 
-**New Feature (processing logic):**
-- Primary code: `src/` — create a new `.ts` file (e.g., `src/audio-extractor.ts`)
-- Import from: `src/main.ts` or new orchestrator module
-- Tests: Create `src/*.test.ts` (no test infrastructure exists yet — use `bun test`)
+**New Feature (e.g., audio handling, different aspect ratios):**
+- Create new module: `src/{feature}.ts`
+- Import from `src/main.ts` or create new entry module
+- Add styles to `src/styles.css` or create `src/{feature}.css` and import it
 
 **New UI Section:**
-- HTML markup: `index.html` — add new card `<div>` following existing pattern
-- Styles: `src/styles.css` — append new rules using existing CSS custom properties
-- Logic: `src/main.ts` — add event handlers using `$("elementId")` pattern
+- Add HTML card in `index.html` (follow existing card pattern with `class="card hidden"`)
+- Add event listeners in `src/main.ts`
+- Add styles in `src/styles.css`
 
-**New Processing Stage:**
-- Implementation: Create `src/<stage-name>.ts` with a function that accepts video/canvas data and returns processed result
-- Integration: Import and call from `runPipeline()` in `src/main.ts`
+**New Utility/Algorithm:**
+- Create `src/{name}.ts` and export functions
+- Import into `src/main.ts`
 
-**Utilities / Shared Helpers:**
-- Place in `src/` as separate modules (e.g., `src/utils.ts`)
-- Keep functions pure where possible for testability
+**New Dev Server Route:**
+- Add to `routes` object in `serve.ts`
 
-**New Web Worker (performance improvement):**
-- Create `src/workers/<name>.worker.ts`
-- Import from main thread using standard Worker API
+**New Dependency:**
+- Add via `bun add {package}`
+- Import in relevant `src/*.ts` file
 
 ## Special Directories
 
 **`dist/`:**
-- Purpose: Static production build output
-- Generated: Yes (`bun run build`)
-- Committed: Listed in `.gitignore` but currently has tracked files — should be fully untracked
-- Deployed: Yes, uploaded to GitHub Pages via CI
-
-**`.planning/`:**
-- Purpose: Project planning and analysis documents
-- Generated: Yes (by GSD commands)
-- Committed: Yes
+- Purpose: Production build artifacts for GitHub Pages
+- Generated: Yes (by `bun run build`)
+- Committed: Yes (deployed directly from this directory)
+- Note: Also gitignored — the checked-in copy may be stale
 
 **`node_modules/`:**
 - Purpose: Installed dependencies
-- Generated: Yes (`bun install`)
+- Generated: Yes (by `bun install`)
 - Committed: No
+
+## Module Organization Strategy
+
+The project uses a **flat single-module** organization:
+
+- One TypeScript file (`src/main.ts`) contains all logic
+- One CSS file (`src/styles.css`) contains all styles
+- HTML directly references the TypeScript module
+- No barrel files, no re-exports, no shared types module
+
+**Import Graph:**
+```
+index.html
+  └── src/main.ts
+        ├── mp4-muxer (external: Muxer, ArrayBufferTarget)
+        └── ./styles.css (side-effect import for bundler)
+```
+
+## Scripts
+
+| Command | Purpose |
+|---------|---------|
+| `bun run dev` | Start dev server with HMR on port 3000 |
+| `bun run build` | Bundle `index.html` → `dist/` |
+| `bun run preview` | Serve built `dist/` locally |
 
 ---
 

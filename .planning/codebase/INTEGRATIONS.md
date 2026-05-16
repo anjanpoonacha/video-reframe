@@ -4,9 +4,24 @@
 
 ## APIs & External Services
 
-**None.**
+**None** - This application is 100% client-side. No HTTP requests, no external APIs, no SDKs.
 
-This is a fully client-side application. All video processing (motion detection, reframing, encoding) happens on-device in the browser. Zero network calls are made during operation.
+## Browser APIs Used
+
+**WebCodecs API:**
+- `VideoEncoder` - Hardware-accelerated H.264 encoding (`src/main.ts:320-330`)
+- `VideoFrame` - Frame creation from canvas for encoding (`src/main.ts:358-360`)
+- Codec: `avc1.640028` (H.264 High Profile Level 4.0)
+- Bitrate: 4 Mbps, 30fps
+
+**Canvas API:**
+- `CanvasRenderingContext2D` - Frame extraction, motion detection, crop preview
+- `createImageBitmap` - Thumbnail generation for filmstrip
+
+**File API:**
+- `URL.createObjectURL` - In-memory video loading and output blob display
+- `<input type="file" accept="video/*">` - Video file selection
+- `<a>.download` - Save processed video to device
 
 ## Data Storage
 
@@ -14,29 +29,29 @@ This is a fully client-side application. All video processing (motion detection,
 - None
 
 **File Storage:**
-- Local filesystem only (browser File API for input, Blob download for output)
+- Browser memory only (no IndexedDB, no localStorage)
+- All processing is ephemeral — data lost on page reload
 
 **Caching:**
 - None
 
 ## Authentication & Identity
 
-**Auth Provider:**
-- None (no user accounts, no server-side state)
+**None** - No auth required. Fully static, offline-capable app.
 
 ## Monitoring & Observability
 
 **Error Tracking:**
-- None (console.error only for VideoEncoder failures)
+- None (errors go to `console.error`)
 
 **Logs:**
-- Browser console only
+- `console.log` for dev server startup (`serve.ts:15`)
+- `console.error` as VideoEncoder error callback (`src/main.ts:322`)
 
 ## CI/CD & Deployment
 
 **Hosting:**
-- GitHub Pages (static site)
-- URL pattern: `https://{user}.github.io/video-reframe/`
+- GitHub Pages (static files)
 
 **CI Pipeline:**
 - GitHub Actions (`.github/workflows/deploy.yml`)
@@ -44,13 +59,17 @@ This is a fully client-side application. All video processing (motion detection,
 - Steps: checkout → setup-bun → install → build → deploy to Pages
 - Uses: `oven-sh/setup-bun@v2`, `actions/deploy-pages@v4`
 
+**Build Output:**
+- `dist/` directory with bundled HTML/JS/CSS
+- `manifest.json` copied separately into dist
+
 ## Environment Configuration
 
 **Required env vars:**
-- None (zero-config application)
+- None
 
 **Secrets location:**
-- No secrets required (fully client-side, no API keys)
+- None needed (no API keys, no auth tokens)
 
 ## Webhooks & Callbacks
 
@@ -60,14 +79,13 @@ This is a fully client-side application. All video processing (motion detection,
 **Outgoing:**
 - None
 
-## PWA Integration
+## PWA Configuration
 
-**Service Worker:**
-- Not implemented (manifest.json present but no SW registration)
-
-**Manifest:**
-- `manifest.json` - PWA metadata for Add to Home Screen
-- Icons referenced: `icon-192.png`, `icon-512.png` (not yet present in repo)
+**Web App Manifest (`manifest.json`):**
+- Display: standalone
+- Start URL: `/video-reframe/`
+- Theme: `#6366f1` (indigo)
+- Icons: 192x192, 512x512 (referenced but not present in repo)
 
 ---
 

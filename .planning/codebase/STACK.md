@@ -5,93 +5,74 @@
 ## Languages
 
 **Primary:**
-- TypeScript 5.x - All application logic (`src/main.ts`, `serve.ts`)
+- TypeScript ^5 (5.9.3 resolved) - All application logic (`src/main.ts`, `serve.ts`)
 
 **Secondary:**
-- HTML - Single page app shell (`index.html`)
-- CSS - Custom styles (`src/styles.css`)
+- HTML - Single-page app entry (`index.html`)
+- CSS - Custom styles with CSS variables (`src/styles.css`)
 
 ## Runtime
 
 **Environment:**
-- Bun (latest) - Development server, bundler, and package manager
+- Bun (latest) - Server, bundler, and package manager
+- Browser - Client-side video processing via WebCodecs API
 
 **Package Manager:**
-- Bun
-- Lockfile: `bun.lock` (present)
+- Bun (lockfile: `bun.lock`, lockfileVersion 1)
 
 ## Frameworks
 
 **Core:**
-- None (vanilla TypeScript, no UI framework)
+- None - Vanilla TypeScript, no UI framework (React/Vue/etc.)
 
 **Testing:**
-- Bun test (available via `bun test`, no tests exist yet)
+- None detected - No test files or test framework configured
 
 **Build/Dev:**
-- Bun bundler - HTML entry point bundling (`bun build ./index.html --outdir ./dist`)
-- Bun dev server - HMR-enabled (`bun --hot serve.ts`)
+- Bun bundler - `bun build ./index.html --outdir ./dist`
+- Bun dev server - `bun --hot serve.ts` with HMR
 
 ## Key Dependencies
 
 **Critical:**
-- `mp4-muxer` ^5.2.2 - MP4 container muxing for WebCodecs VideoEncoder output
+- `mp4-muxer` ^5.2.2 - MP4 container muxing for encoded video output (`src/main.ts:1`)
 
-**Infrastructure:**
-- `@types/bun` latest - Bun runtime type definitions (dev)
-- `@types/dom-webcodecs` ^0.1.18 - WebCodecs API type definitions (dev)
-
-## Browser APIs Used
-
-**WebCodecs (primary path):**
-- `VideoEncoder` - Hardware-accelerated H.264 encoding
-- `VideoFrame` - Raw video frame creation from canvas
-
-**Canvas (fallback path):**
-- `CanvasRenderingContext2D` - Frame extraction and reframing
-- `canvas.captureStream()` + `MediaRecorder` - WebM fallback encoding
-
-**Other:**
-- `URL.createObjectURL()` - Blob URL creation for video playback/download
-- `ImageData` / `getImageData()` - Pixel-level motion detection
+**Type Definitions:**
+- `@types/bun` latest - Bun runtime types
+- `@types/dom-webcodecs` ^0.1.18 - WebCodecs API types (VideoEncoder, VideoFrame)
 
 ## Configuration
 
 **TypeScript (`tsconfig.json`):**
 - Target: ESNext
 - Module: Preserve (bundler mode)
-- Strict: true
-- Lib: ESNext, DOM, DOM.Iterable
-- JSX: react-jsx (configured but unused)
-- `noUncheckedIndexedAccess`: true
-- `noImplicitOverride`: true
+- JSX: react-jsx (unused currently)
+- Strict mode enabled
+- `noUncheckedIndexedAccess: true`
+- `noImplicitOverride: true`
 
 **Build:**
-- Entry: `./index.html` (Bun HTML imports)
+- Entry point: `index.html` (Bun HTML imports)
 - Output: `./dist/`
-
-**PWA (`manifest.json`):**
-- Display: standalone
-- Start URL: `/video-reframe/`
-- Theme: `#6366f1` (indigo)
+- Dev server: port 3000 with HMR (`serve.ts`)
 
 ## Platform Requirements
 
 **Development:**
-- Bun runtime
-- No environment variables required
-- `bun install && bun run dev` → http://localhost:3000
+- Bun runtime (macOS/Linux/WSL)
+- No `.nvmrc` or version pinning beyond `@types/bun: latest`
 
 **Production:**
 - Static hosting (GitHub Pages)
-- Modern browser with WebCodecs support (Chrome 94+, Edge 94+, Safari 16.4+)
-- Fallback to MediaRecorder/WebM for unsupported browsers
+- Browser with WebCodecs API support (Chrome 94+, Edge 94+, Safari 16.4+)
+- PWA-capable (`manifest.json` present)
 
-**Scripts:**
+## Scripts
+
 ```bash
-bun run dev       # HMR dev server on port 3000
-bun run build     # Bundle to dist/
-bun run preview   # Serve dist/ locally
+bun run dev       # Hot-reload dev server on port 3000
+bun run build     # Bundle to ./dist/
+bun run preview   # Serve dist/ locally (bunx serve)
 ```
 
 ---
