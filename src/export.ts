@@ -111,6 +111,41 @@ export async function exportVideo(config: ExportConfig): Promise<Blob> {
   let encodedFrames = 0;
   let consecutiveFrames = 0;
 
+  // D-17: Thermal pressure detection via frame timing instrumentation
+  let baselineFrameTime = 0;
+  let frameCount = 0;
+  const recentFrameTimes: number[] = [];
+  const THERMAL_WINDOW = 20;
+  const THERMAL_THRESHOLD = 1.8;
+  let effectiveYieldEvery = preset.yieldEvery;
+
+  function checkThermalPressure(frameTime: number): void {
+    // Establish baseline from first 10 frames
+    if (frameCount < 10) {
+      baselineFrameTime = ((baselineFrameTime * frameCount) + frameTime) / (frameCount + 1);
+    }
+    frameCount++;
+
+    // After baseline established, monitor for thermal degradation
+    if (frameCount >= 10) {
+      recentFrameTimes.push(frameTime);
+      if (recentFrameTimes.length > THERMAL_WINDOW) {
+        recentFrameTimes.shift();
+      }
+      if (recentFrameTimes.length === THERMAL_WINDOW) {
+        // Compute median of recent frame times
+        const sorted = [...recentFrameTimes].sort((a, b) => a - b);
+        const median = sorted[Math.floor(sorted.length / 2)]!;
+        if (median > baselineFrameTime * THERMAL_THRESHOLD) {
+          // Thermal pressure detected — yield more frequently
+          effectiveYieldEvery = Math.max(2, Math.floor(preset.yieldEvery / 2));
+        } else {
+          effectiveYieldEvery = preset.yieldEvery;
+        }
+      }
+    }
+  }
+
   for (let i = 0; i < totalFrames; i++) {
     const t = i / fps;
 
@@ -130,6 +165,7 @@ export async function exportVideo(config: ExportConfig): Promise<Blob> {
     // Cross-fade at cut boundaries (D-19, D-20, D-21)
     if (cutEntryFrames.has(i) && hasPrevFrame) {
       for (let j = 0; j < FADE_FRAMES; j++) {
+        const fadeFrameStart = performance.now();
         const alpha = (j + 1) / (FADE_FRAMES + 1);
 
         // Draw current frame content onto fade canvas
@@ -163,14 +199,17 @@ export async function exportVideo(config: ExportConfig): Promise<Blob> {
 
         encodedFrames++;
         consecutiveFrames++;
+        checkThermalPressure(performance.now() - fadeFrameStart);
 
         // Yield gate: adaptive frequency + hard cap (D-18)
-        if (consecutiveFrames >= preset.yieldEvery || consecutiveFrames >= preset.maxConsecutive) {
+        if (consecutiveFrames >= effectiveYieldEvery || consecutiveFrames >= preset.maxConsecutive) {
           await new Promise((r) => setTimeout(r, preset.yieldMs));
           consecutiveFrames = 0;
         }
       }
     }
+
+    const frameStart = performance.now();
 
     // Draw crop
     ctx.drawImage(videoEl, srcX, 0, cropSrcW, srcH, 0, 0, encW, encH);
@@ -204,10 +243,11 @@ export async function exportVideo(config: ExportConfig): Promise<Blob> {
 
     encodedFrames++;
     consecutiveFrames++;
+    checkThermalPressure(performance.now() - frameStart);
     onProgress(Math.round((i / progressTotal) * 100));
 
     // Yield gate: adaptive frequency + hard cap (D-18)
-    if (consecutiveFrames >= preset.yieldEvery || consecutiveFrames >= preset.maxConsecutive) {
+    if (consecutiveFrames >= effectiveYieldEvery || consecutiveFrames >= preset.maxConsecutive) {
       await new Promise((r) => setTimeout(r, preset.yieldMs));
       consecutiveFrames = 0;
     }
