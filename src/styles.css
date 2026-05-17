@@ -194,6 +194,8 @@ body {
 .filmstrip .thumb canvas { width: 100%; height: 100%; display: block; }
 .filmstrip .thumb.active { border-color: var(--accent); }
 .filmstrip .thumb.skipped { opacity: 0.25; }
+.filmstrip .thumb.keyframe-user { border-bottom: 3px solid var(--warning); }
+.filmstrip .thumb.keyframe-user.active { border-color: var(--accent); border-bottom-color: var(--warning); }
 
 /* Frame info bar */
 .frame-info-bar {
