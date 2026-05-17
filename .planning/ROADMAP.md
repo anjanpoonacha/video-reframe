@@ -59,11 +59,12 @@ Plans:
   3. At least one kinetic text style with high-energy animated entrance is available
   4. Logo watermark appears on every frame at the user's chosen position
   5. Skip-range cuts produce smooth animated transitions instead of hard jumps
-**Plans**: TBD
+**Plans:** 2 plans
 **UI hint**: yes
 
 Plans:
-- [ ] 03-01: TBD
+- [ ] 03-01-PLAN.md — Pro Pack composite overlay (intro + lower third + kinetic text + watermark)
+- [ ] 03-02-PLAN.md — Cross-fade transitions at cut boundaries
 
 ### Phase 4: Performance Hardening
 **Goal**: Full overlay export runs reliably on Snapdragon 770 devices within acceptable time and memory budgets
