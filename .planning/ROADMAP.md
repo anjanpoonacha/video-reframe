@@ -12,7 +12,7 @@ Transform the existing crop-and-export pipeline into a branded content productio
 
 - [ ] **Phase 1: Overlay-Ready Export** - Memory-safe export pipeline with overlay composition injection point
 - [ ] **Phase 2: Brand Kit & Templates** - User configures brand identity and template engine renders overlays frame-by-frame
-- [ ] **Phase 3: Animated Overlays** - Full branded output with intro, lower third, text, watermark, and transitions
+- [x] **Phase 3: Animated Overlays** - Full branded output with intro, lower third, text, watermark, and transitions
 - [ ] **Phase 4: Performance Hardening** - Smooth export on Snapdragon 770 class devices without OOM or thermal throttle
 
 ## Phase Details
@@ -63,8 +63,8 @@ Plans:
 **UI hint**: yes
 
 Plans:
-- [ ] 03-01-PLAN.md — Pro Pack composite overlay (intro + lower third + kinetic text + watermark)
-- [ ] 03-02-PLAN.md — Cross-fade transitions at cut boundaries
+- [x] 03-01-PLAN.md — Pro Pack composite overlay (intro + lower third + kinetic text + watermark)
+- [x] 03-02-PLAN.md — Cross-fade transitions at cut boundaries
 
 ### Phase 4: Performance Hardening
 **Goal**: Full overlay export runs reliably on Snapdragon 770 devices within acceptable time and memory budgets

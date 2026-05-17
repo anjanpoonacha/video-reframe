@@ -24,7 +24,7 @@
 - [x] **OVRL-02**: Animated lower third overlay with channel name/handle
 - [x] **OVRL-03**: Kinetic text overlay — at least one animated text style with high-energy feel
 - [x] **OVRL-04**: Logo watermark composited onto every frame of output at chosen position
-- [ ] **OVRL-05**: Smooth animated transitions between cut segments (when skip ranges create jumps)
+- [x] **OVRL-05**: Smooth animated transitions between cut segments (when skip ranges create jumps)
 
 ### Template System
 
@@ -83,7 +83,7 @@
 | OVRL-02 | Phase 3: Animated Overlays | Complete |
 | OVRL-03 | Phase 3: Animated Overlays | Complete |
 | OVRL-04 | Phase 3: Animated Overlays | Complete |
-| OVRL-05 | Phase 3: Animated Overlays | Pending |
+| OVRL-05 | Phase 3: Animated Overlays | Complete |
 | PERF-01 | Phase 4: Performance Hardening | Pending |
 | PERF-02 | Phase 4: Performance Hardening | Pending |
 | PERF-03 | Phase 4: Performance Hardening | Pending |
