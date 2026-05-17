@@ -105,7 +105,7 @@ function drawDefaultLogo(
 
 export const lowerThirdTemplate: TemplateDefinition = {
   name: "Pro Lower Third",
-  duration: 1.2,
+  duration: 4.0,
 
   async create(brandKit: BrandKit): Promise<TemplateInstance> {
     const logoBitmap = brandKit.logo ? await decodeLogo(brandKit.logo) : null;
@@ -118,19 +118,27 @@ export const lowerThirdTemplate: TemplateDefinition = {
       textAlpha: 0,
       logoAlpha: 0,
       logoScale: 0.8,
+      masterAlpha: 1,
     };
 
-    // Premium animation: accent bar → plate slides in → text fades → logo pops
+    // Premium animation: intro (1.2s) → hold (2s) → fade out (0.8s) = ~4s total
     const tl = gsap.timeline({ paused: true });
+    // Intro: accent bar → plate slides in → text fades → logo pops
     tl.to(state, { accentBarWidth: 1, duration: 0.25, ease: "power3.out" })
       .to(state, { plateAlpha: 1, plateSlide: 0, duration: 0.35, ease: "power2.out" }, 0.1)
       .to(state, { textAlpha: 1, duration: 0.3, ease: "power1.out" }, 0.25)
-      .to(state, { logoAlpha: 1, logoScale: 1, duration: 0.4, ease: "back.out(1.4)" }, 0.15);
+      .to(state, { logoAlpha: 1, logoScale: 1, duration: 0.4, ease: "back.out(1.4)" }, 0.15)
+      // Hold for 2s then fade out everything
+      .to(state, { masterAlpha: 0, duration: 0.8, ease: "power2.inOut" }, 3.2);
 
     const render: OverlayRenderFn = (ctx, time, w, h) => {
+      // Skip rendering entirely after fade-out completes
+      if (time > 4.0) return;
+
       ctx.save();
       tl.seek(time);
 
+      const m = state.masterAlpha; // Master fade multiplier
       const scale = w / 1080; // Design at 1080 baseline, scale proportionally
 
       // --- Lower-third nameplate ---
@@ -142,33 +150,33 @@ export const lowerThirdTemplate: TemplateDefinition = {
 
       // Accent bar (thin colored line above plate)
       const accentH = Math.round(3 * scale);
-      ctx.globalAlpha = state.accentBarWidth > 0 ? 0.95 : 0;
+      ctx.globalAlpha = (state.accentBarWidth > 0 ? 0.95 : 0) * m;
       ctx.fillStyle = brandKit.accentColor;
       ctx.fillRect(plateX, plateY - accentH - 2 * scale, plateW * state.accentBarWidth, accentH);
 
       // Plate background (dark glass effect)
-      ctx.globalAlpha = state.plateAlpha * 0.88;
+      ctx.globalAlpha = state.plateAlpha * 0.88 * m;
       ctx.fillStyle = "rgba(10, 10, 15, 0.85)";
       ctx.beginPath();
       ctx.roundRect(plateX, plateY, plateW, plateH, cornerRadius);
       ctx.fill();
 
       // Subtle inner border (glass edge)
-      ctx.strokeStyle = `rgba(255, 255, 255, ${state.plateAlpha * 0.08})`;
+      ctx.strokeStyle = `rgba(255, 255, 255, ${state.plateAlpha * 0.08 * m})`;
       ctx.lineWidth = 1;
       ctx.beginPath();
       ctx.roundRect(plateX + 0.5, plateY + 0.5, plateW - 1, plateH - 1, cornerRadius);
       ctx.stroke();
 
       // Primary color left edge accent
-      ctx.globalAlpha = state.plateAlpha * 0.95;
+      ctx.globalAlpha = state.plateAlpha * 0.95 * m;
       ctx.fillStyle = brandKit.primaryColor;
       ctx.beginPath();
       ctx.roundRect(plateX, plateY, Math.round(4 * scale), plateH, [cornerRadius, 0, 0, cornerRadius]);
       ctx.fill();
 
       // Channel name text
-      ctx.globalAlpha = state.textAlpha;
+      ctx.globalAlpha = state.textAlpha * m;
       ctx.fillStyle = "#ffffff";
       const fontSize = Math.round(18 * scale);
       ctx.font = `600 ${fontSize}px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;
@@ -181,7 +189,7 @@ export const lowerThirdTemplate: TemplateDefinition = {
       const logoSize = Math.round(48 * scale);
       const pos = getLogoPosition(brandKit.logoPosition, logoSize, logoSize, w, h);
 
-      ctx.globalAlpha = state.logoAlpha;
+      ctx.globalAlpha = state.logoAlpha * m;
       const logoDrawSize = logoSize * state.logoScale;
       const logoOffset = (logoSize - logoDrawSize) / 2;
 
@@ -207,7 +215,7 @@ export const lowerThirdTemplate: TemplateDefinition = {
         ctx.restore();
 
         // Ring border around logo
-        ctx.globalAlpha = state.logoAlpha * 0.6;
+        ctx.globalAlpha = state.logoAlpha * 0.6 * m;
         ctx.strokeStyle = brandKit.primaryColor;
         ctx.lineWidth = Math.round(2 * scale);
         ctx.beginPath();
