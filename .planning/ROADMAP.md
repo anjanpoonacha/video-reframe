@@ -29,7 +29,7 @@ Transform the existing crop-and-export pipeline into a branded content productio
 **Plans:** 1 plan
 
 Plans:
-- [ ] 01-01-PLAN.md — Extract export pipeline with overlay injection, backpressure, and test overlay
+- [x] 01-01-PLAN.md — Extract export pipeline with overlay injection, backpressure, and test overlay
 
 ### Phase 2: Brand Kit & Templates
 **Goal**: User sets up their channel brand (logo, colors) once, and the template engine renders overlays frame-by-frame using GSAP seek + SnapDOM
@@ -85,7 +85,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Overlay-Ready Export | 0/? | Not started | - |
+| 1. Overlay-Ready Export | 1/1 | Complete | 2026-05-17 |
 | 2. Brand Kit & Templates | 0/? | Not started | - |
 | 3. Animated Overlays | 0/? | Not started | - |
 | 4. Performance Hardening | 0/? | Not started | - |

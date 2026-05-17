@@ -7,9 +7,9 @@
 
 ### Export Pipeline
 
-- [ ] **EXPORT-01**: Export pipeline uses memory-safe VideoFrame lifecycle (close frames after encode)
-- [ ] **EXPORT-02**: Export pipeline supports overlay composition step between frame draw and encode
-- [ ] **EXPORT-03**: Encoder backpressure handling prevents queue overflow on mid-range devices
+- [x] **EXPORT-01**: Export pipeline uses memory-safe VideoFrame lifecycle (close frames after encode)
+- [x] **EXPORT-02**: Export pipeline supports overlay composition step between frame draw and encode
+- [x] **EXPORT-03**: Encoder backpressure handling prevents queue overflow on mid-range devices
 
 ### Brand Kit
 
@@ -69,9 +69,9 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| EXPORT-01 | Phase 1: Overlay-Ready Export | Pending |
-| EXPORT-02 | Phase 1: Overlay-Ready Export | Pending |
-| EXPORT-03 | Phase 1: Overlay-Ready Export | Pending |
+| EXPORT-01 | Phase 1: Overlay-Ready Export | Complete |
+| EXPORT-02 | Phase 1: Overlay-Ready Export | Complete |
+| EXPORT-03 | Phase 1: Overlay-Ready Export | Complete |
 | BRAND-01 | Phase 2: Brand Kit & Templates | Pending |
 | BRAND-02 | Phase 2: Brand Kit & Templates | Pending |
 | BRAND-03 | Phase 2: Brand Kit & Templates | Pending |
