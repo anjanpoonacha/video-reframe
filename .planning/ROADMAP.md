@@ -26,10 +26,10 @@ Transform the existing crop-and-export pipeline into a branded content productio
   1. User can export a video with a hardcoded test overlay composited onto every frame
   2. Export completes a 60s video without memory warnings or OOM crash on a 4GB device
   3. Export never drops frames or corrupts output when encoder queue is saturated
-**Plans**: TBD
+**Plans:** 1 plan
 
 Plans:
-- [ ] 01-01: TBD
+- [ ] 01-01-PLAN.md — Extract export pipeline with overlay injection, backpressure, and test overlay
 
 ### Phase 2: Brand Kit & Templates
 **Goal**: User sets up their channel brand (logo, colors) once, and the template engine renders overlays frame-by-frame using GSAP seek + SnapDOM
