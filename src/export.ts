@@ -51,6 +51,25 @@ export async function exportVideo(config: ExportConfig): Promise<Blob> {
   const cropSrcW = srcH * (9 / 16);
   const frameDuration = 1_000_000 / fps;
 
+  // Cross-fade parameters (D-19: 0.15s ≈ 4 frames at 30fps)
+  const FADE_FRAMES = 4;
+
+  // Pre-compute cut entry frames: first rendered frame after a skip range ends
+  const cutEntryFrames = new Set<number>();
+  const sortedSkips = [...skipRanges].sort((a, b) => a.start - b.start);
+  for (let i = 1; i < totalFrames; i++) {
+    const tPrev = (i - 1) / fps;
+    const tCurr = i / fps;
+    const prevSkipped = sortedSkips.some((r) => tPrev >= r.start && tPrev < r.end);
+    const currSkipped = sortedSkips.some((r) => tCurr >= r.start && tCurr < r.end);
+    if (prevSkipped && !currSkipped) {
+      cutEntryFrames.add(i);
+    }
+  }
+
+  // Adjust progress denominator to account for transition frames
+  const progressTotal = totalFrames + cutEntryFrames.size * FADE_FRAMES;
+
   const muxer = new Muxer({
     target: new ArrayBufferTarget(),
     video: { codec: "avc", width: encW, height: encH },
@@ -75,7 +94,12 @@ export async function exportVideo(config: ExportConfig): Promise<Blob> {
   canvas.height = encH;
   const ctx = canvas.getContext("2d")!;
 
+  // Secondary canvas for cross-fade blending (D-20)
+  const fadeCanvas = new OffscreenCanvas(encW, encH);
+  const fadeCtx = fadeCanvas.getContext("2d")!;
+
   let encodedFrames = 0;
+  let lastRenderedFrame: ImageData | null = null;
 
   for (let i = 0; i < totalFrames; i++) {
     const t = i / fps;
@@ -92,6 +116,44 @@ export async function exportVideo(config: ExportConfig): Promise<Blob> {
     await new Promise((r) =>
       videoEl.addEventListener("seeked", r, { once: true })
     );
+
+    // Cross-fade at cut boundaries (D-19, D-20, D-21)
+    if (cutEntryFrames.has(i) && lastRenderedFrame) {
+      for (let j = 0; j < FADE_FRAMES; j++) {
+        const alpha = (j + 1) / (FADE_FRAMES + 1);
+
+        // Draw current frame content onto fade canvas
+        fadeCtx.drawImage(videoEl, srcX, 0, cropSrcW, srcH, 0, 0, encW, encH);
+        overlay(fadeCtx, t, encW, encH);
+
+        // Blend: put previous frame on main, overlay new at progressive alpha
+        ctx.putImageData(lastRenderedFrame, 0, 0);
+        ctx.globalAlpha = alpha;
+        ctx.drawImage(fadeCanvas, 0, 0);
+        ctx.globalAlpha = 1.0;
+
+        // Encode blended frame
+        let frame: VideoFrame | null = null;
+        try {
+          frame = new VideoFrame(canvas, {
+            timestamp: encodedFrames * frameDuration,
+            duration: frameDuration,
+          });
+
+          while (encoder.encodeQueueSize > 5) {
+            await new Promise((r) =>
+              encoder.addEventListener("dequeue", r, { once: true })
+            );
+          }
+
+          encoder.encode(frame, { keyFrame: encodedFrames % 60 === 0 });
+        } finally {
+          frame?.close();
+        }
+
+        encodedFrames++;
+      }
+    }
 
     // Draw crop
     ctx.drawImage(videoEl, srcX, 0, cropSrcW, srcH, 0, 0, encW, encH);
@@ -119,8 +181,11 @@ export async function exportVideo(config: ExportConfig): Promise<Blob> {
       frame?.close();
     }
 
+    // Store rendered frame for potential cross-fade at next cut boundary
+    lastRenderedFrame = ctx.getImageData(0, 0, encW, encH);
+
     encodedFrames++;
-    onProgress(Math.round((i / totalFrames) * 100));
+    onProgress(Math.round((i / progressTotal) * 100));
 
     // UI yield every 5 frames
     if (i % 5 === 0) await new Promise((r) => setTimeout(r, 0));
