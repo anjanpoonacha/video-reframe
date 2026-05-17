@@ -239,15 +239,233 @@ export const lowerThirdTemplate: TemplateDefinition = {
   },
 };
 
+// --- Pro Pack Composite Template ---
+// Bundles: animated intro bumper, enhanced lower-third with handle,
+// kinetic text, and persistent watermark into one cohesive overlay.
+
+export const proPackTemplate: TemplateDefinition = {
+  name: "Pro Pack",
+  duration: Infinity,
+
+  async create(brandKit: BrandKit): Promise<TemplateInstance> {
+    const logoBitmap = brandKit.logo ? await decodeLogo(brandKit.logo) : null;
+
+    const state = {
+      // Intro bumper
+      introLogoScale: 0.8,
+      introLogoAlpha: 0,
+      introNameAlpha: 0,
+      introVignetteAlpha: 0,
+      // Lower third
+      lowerBarWidth: 0,
+      lowerPlateAlpha: 0,
+      lowerTextAlpha: 0,
+      lowerHandleAlpha: 0,
+      lowerMasterAlpha: 1,
+      // Kinetic text
+      kineticY: 30,
+      kineticAlpha: 0,
+      // Watermark
+      watermarkAlpha: 0,
+    };
+
+    const tl = gsap.timeline({ paused: true });
+
+    // INTRO BUMPER (0–2.5s)
+    // Logo scales 80%→100% + fade-in over 0.6s
+    tl.to(state, { introLogoScale: 1, introLogoAlpha: 1, duration: 0.6, ease: "power2.out" }, 0)
+      .to(state, { introVignetteAlpha: 1, duration: 0.6, ease: "power2.out" }, 0)
+      // Channel name fades in at 0.6s
+      .to(state, { introNameAlpha: 1, duration: 0.4, ease: "power2.out" }, 0.6)
+      // Everything fades out at 2.0s
+      .to(state, { introLogoAlpha: 0, introNameAlpha: 0, introVignetteAlpha: 0, duration: 0.5, ease: "power2.inOut" }, 2.0);
+
+    // WATERMARK snaps to visible at 2.5s (no animation per D-18)
+    tl.set(state, { watermarkAlpha: 1 }, 2.5);
+
+    // LOWER THIRD (2.5s–6.3s)
+    tl.to(state, { lowerBarWidth: 1, duration: 0.25, ease: "power3.out" }, 2.5)
+      .to(state, { lowerPlateAlpha: 1, duration: 0.35, ease: "power2.out" }, 2.6)
+      .to(state, { lowerTextAlpha: 1, duration: 0.3, ease: "power2.out" }, 2.75)
+      .to(state, { lowerHandleAlpha: 1, duration: 0.3, ease: "power2.out" }, 2.8)
+      // Fade out at 5.5s (3s hold from 2.5s)
+      .to(state, { lowerMasterAlpha: 0, duration: 0.8, ease: "power2.inOut" }, 5.5);
+
+    // KINETIC TEXT (3.0s–5.7s)
+    tl.to(state, { kineticY: 0, kineticAlpha: 1, duration: 0.3, ease: "power2.out" }, 3.0)
+      // Hold then exit at 5.3s
+      .to(state, { kineticY: 30, kineticAlpha: 0, duration: 0.4, ease: "power2.inOut" }, 5.3);
+
+    const render: OverlayRenderFn = (ctx, time, w, h) => {
+      ctx.save();
+      tl.seek(time);
+
+      const scale = w / 1080;
+
+      // --- INTRO BUMPER (renders if time < 2.5s) ---
+      if (time < 2.5) {
+        // Dark vignette
+        if (state.introVignetteAlpha > 0) {
+          ctx.globalAlpha = state.introVignetteAlpha;
+          const grad = ctx.createRadialGradient(w / 2, h / 2, w * 0.2, w / 2, h / 2, w * 0.7);
+          grad.addColorStop(0, "rgba(0,0,0,0)");
+          grad.addColorStop(1, "rgba(0,0,0,0.3)");
+          ctx.fillStyle = grad;
+          ctx.fillRect(0, 0, w, h);
+        }
+
+        // Logo centered
+        if (state.introLogoAlpha > 0) {
+          const logoSize = w * 0.15;
+          const logoX = (w - logoSize) / 2;
+          const logoY = (h - logoSize) / 2 - 20 * scale;
+          const drawSize = logoSize * state.introLogoScale;
+          const offset = (logoSize - drawSize) / 2;
+
+          ctx.globalAlpha = state.introLogoAlpha;
+          if (logoBitmap) {
+            ctx.save();
+            ctx.beginPath();
+            ctx.arc(logoX + logoSize / 2, logoY + logoSize / 2, drawSize / 2, 0, Math.PI * 2);
+            ctx.clip();
+            ctx.drawImage(logoBitmap, logoX + offset, logoY + offset, drawSize, drawSize);
+            ctx.restore();
+          } else {
+            drawDefaultLogo(ctx, logoX + offset, logoY + offset, drawSize, brandKit);
+          }
+
+          // Channel name below logo
+          if (state.introNameAlpha > 0) {
+            ctx.globalAlpha = state.introNameAlpha;
+            ctx.fillStyle = "#ffffff";
+            const fontSize = Math.round(w * 0.04);
+            ctx.font = `bold ${fontSize}px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;
+            ctx.textAlign = "center";
+            ctx.textBaseline = "top";
+            ctx.fillText(brandKit.channelName, w / 2, logoY + logoSize + 12 * scale);
+          }
+        }
+      }
+
+      // --- WATERMARK (renders if time >= 2.5s) ---
+      if (time >= 2.5 && state.watermarkAlpha > 0) {
+        const wmSize = Math.round(w * 0.05);
+        const pos = getLogoPosition(brandKit.logoPosition, wmSize, wmSize, w, h);
+        ctx.globalAlpha = state.watermarkAlpha * 0.25;
+
+        if (logoBitmap) {
+          ctx.save();
+          ctx.beginPath();
+          ctx.arc(pos.x + wmSize / 2, pos.y + wmSize / 2, wmSize / 2, 0, Math.PI * 2);
+          ctx.clip();
+          ctx.drawImage(logoBitmap, pos.x, pos.y, wmSize, wmSize);
+          ctx.restore();
+        } else {
+          drawDefaultLogo(ctx, pos.x, pos.y, wmSize, brandKit);
+        }
+      }
+
+      // --- LOWER THIRD (renders if time >= 2.5 AND time < 6.3) ---
+      if (time >= 2.5 && time < 6.3) {
+        const m = state.lowerMasterAlpha;
+        if (m > 0) {
+          const plateH = Math.round(56 * scale);
+          const plateY = h - h * SAFE_ZONE.bottom - plateH - Math.round(16 * scale);
+          const plateX = Math.round(w * SAFE_ZONE.left);
+          const plateW = Math.round(w * 0.65);
+          const cornerRadius = Math.round(6 * scale);
+
+          // Accent bar
+          const accentH = Math.round(3 * scale);
+          ctx.globalAlpha = (state.lowerBarWidth > 0 ? 0.95 : 0) * m;
+          ctx.fillStyle = brandKit.accentColor;
+          ctx.fillRect(plateX, plateY - accentH - 2 * scale, plateW * state.lowerBarWidth, accentH);
+
+          // Plate background
+          ctx.globalAlpha = state.lowerPlateAlpha * 0.55 * m;
+          ctx.fillStyle = "rgba(0, 0, 0, 0.45)";
+          ctx.beginPath();
+          ctx.roundRect(plateX, plateY, plateW, plateH, cornerRadius);
+          ctx.fill();
+
+          // Soft glow border
+          ctx.globalAlpha = state.lowerPlateAlpha * 0.15 * m;
+          ctx.strokeStyle = "#ffffff";
+          ctx.lineWidth = 0.5;
+          ctx.beginPath();
+          ctx.roundRect(plateX + 0.5, plateY + 0.5, plateW - 1, plateH - 1, cornerRadius);
+          ctx.stroke();
+
+          // Primary color left edge
+          ctx.globalAlpha = state.lowerPlateAlpha * 0.9 * m;
+          ctx.fillStyle = brandKit.primaryColor;
+          ctx.beginPath();
+          ctx.roundRect(plateX, plateY, Math.round(3 * scale), plateH, [cornerRadius, 0, 0, cornerRadius]);
+          ctx.fill();
+
+          // Channel name text
+          ctx.globalAlpha = state.lowerTextAlpha * m;
+          ctx.fillStyle = "#ffffff";
+          const fontSize = Math.round(18 * scale);
+          ctx.font = `600 ${fontSize}px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;
+          ctx.textBaseline = "middle";
+          ctx.textAlign = "left";
+          const textX = plateX + Math.round(16 * scale);
+          const nameY = brandKit.channelHandle ? plateY + plateH * 0.38 : plateY + plateH / 2;
+          ctx.fillText(brandKit.channelName, textX, nameY);
+
+          // Handle text (second line, lighter, smaller)
+          if (brandKit.channelHandle) {
+            ctx.globalAlpha = state.lowerHandleAlpha * 0.6 * m;
+            ctx.fillStyle = "#ffffff";
+            const handleFontSize = Math.round(14 * scale);
+            ctx.font = `500 ${handleFontSize}px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;
+            ctx.fillText(brandKit.channelHandle, textX, plateY + plateH * 0.66);
+          }
+        }
+      }
+
+      // --- KINETIC TEXT (renders if time >= 3.0 AND time < 5.7) ---
+      if (time >= 3.0 && time < 5.7 && state.kineticAlpha > 0) {
+        ctx.globalAlpha = state.kineticAlpha;
+        ctx.fillStyle = "#ffffff";
+        ctx.shadowOffsetX = 2;
+        ctx.shadowOffsetY = 2;
+        ctx.shadowColor = "rgba(0,0,0,0.5)";
+        ctx.shadowBlur = 4;
+        const kFontSize = Math.round(h * 0.08);
+        ctx.font = `bold ${kFontSize}px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText("PREMIUM CONTENT", w / 2, h / 2 + state.kineticY * scale);
+        // Reset shadow
+        ctx.shadowOffsetX = 0;
+        ctx.shadowOffsetY = 0;
+        ctx.shadowColor = "transparent";
+        ctx.shadowBlur = 0;
+      }
+
+      ctx.restore();
+    };
+
+    const dispose = () => {
+      tl.kill();
+      logoBitmap?.close();
+    };
+
+    return { render, dispose };
+  },
+};
+
 // --- Template Registry ---
 
-export const TEMPLATE_REGISTRY: TemplateDefinition[] = [lowerThirdTemplate];
+export const TEMPLATE_REGISTRY: TemplateDefinition[] = [lowerThirdTemplate, proPackTemplate];
 
 // --- Active template accessor ---
 
 export async function getActiveTemplate(): Promise<TemplateInstance> {
   const brandKit = loadBrandKit();
-  return lowerThirdTemplate.create(brandKit);
+  return proPackTemplate.create(brandKit);
 }
 
 export type { BrandKit };

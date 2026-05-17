@@ -1,5 +1,6 @@
 export interface BrandKit {
   channelName: string;
+  channelHandle: string;
   logo: string | null;
   primaryColor: string;
   accentColor: string;
@@ -10,6 +11,7 @@ const BRAND_KIT_KEY = "vr-brand-kit";
 
 const DEFAULT_BRAND_KIT: BrandKit = {
   channelName: "My Channel",
+  channelHandle: "",
   logo: null,
   primaryColor: "#6c5ce7",
   accentColor: "#00cec9",
