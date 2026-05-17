@@ -41,11 +41,12 @@ Plans:
   2. User can choose a logo corner position (TL/TR/BL/BR) and see it applied in export
   3. Template engine renders a GSAP-driven HTML overlay frame-by-frame via seek(t) + canvas rasterization
   4. Brand kit values (colors, logo) flow into template rendering automatically
-**Plans**: TBD
+**Plans:** 2 plans
 **UI hint**: yes
 
 Plans:
-- [ ] 02-01: TBD
+- [ ] 02-01-PLAN.md — Brand kit settings panel with localStorage persistence (logo, colors, position)
+- [ ] 02-02-PLAN.md — Template engine with GSAP-driven lower-third + export integration
 
 ### Phase 3: Animated Overlays
 **Goal**: Exported video looks professionally produced — animated intro, lower third, kinetic text, persistent watermark, and smooth transitions between cuts
