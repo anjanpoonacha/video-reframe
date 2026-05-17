@@ -75,10 +75,11 @@ Plans:
   1. Export with all overlays completes within 3× the time of a plain (no-overlay) export
   2. A 60s video exports without OOM crash on a 4GB RAM device
   3. Overlay rendering averages under 100ms per frame on target hardware
-**Plans**: TBD
+**Plans:** 2 plans
 
 Plans:
-- [ ] 04-01: TBD
+- [ ] 04-01-PLAN.md — Device tier detection + adaptive export pipeline (resolution, backpressure, getImageData elimination)
+- [ ] 04-02-PLAN.md — Template render optimization + thermal pressure detection
 
 ## Progress
 
