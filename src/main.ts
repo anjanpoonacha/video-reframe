@@ -1,5 +1,5 @@
 import { exportVideo } from "./export";
-import { renderTestOverlay } from "./overlay";
+import { getActiveTemplate } from "./templates";
 import { initBrandKitPanel } from "./brand-kit";
 import "./styles.css";
 
@@ -412,18 +412,22 @@ $("exportBtn").addEventListener("click", async () => {
   $("exportStatus").textContent = "Encoding...";
   const totalStart = performance.now();
 
+  const template = await getActiveTemplate();
+
   try {
     const blob = await exportVideo({
       videoEl,
       keyframes,
       skipRanges,
-      overlay: renderTestOverlay,
-      maxDuration: 10,
+      overlay: template.render,
+      maxDuration: 10, // dev guard — remove for production
       onProgress: (pct) => {
         ($("exportProgress") as HTMLElement).style.width = pct + "%";
         $("exportStatus").textContent = `Encoding... ${pct}%`;
       },
     });
+
+    template.dispose();
 
     ($("exportProgress") as HTMLElement).style.width = "100%";
     const totalTime = ((performance.now() - totalStart) / 1000).toFixed(1);
@@ -445,6 +449,7 @@ $("exportBtn").addEventListener("click", async () => {
       a.click();
     };
   } catch (err) {
+    template.dispose();
     $("exportStatus").textContent = `Export failed: ${err instanceof Error ? err.message : "Unknown error"}`;
     $("exportStatus").className = "status error";
   } finally {
