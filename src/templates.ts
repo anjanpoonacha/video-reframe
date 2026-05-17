@@ -154,25 +154,26 @@ export const lowerThirdTemplate: TemplateDefinition = {
       ctx.fillStyle = brandKit.accentColor;
       ctx.fillRect(plateX, plateY - accentH - 2 * scale, plateW * state.accentBarWidth, accentH);
 
-      // Plate background (dark glass effect)
-      ctx.globalAlpha = state.plateAlpha * 0.88 * m;
-      ctx.fillStyle = "rgba(10, 10, 15, 0.85)";
+      // Plate background (frosted glass — light, airy, non-intrusive)
+      ctx.globalAlpha = state.plateAlpha * 0.55 * m;
+      ctx.fillStyle = "rgba(0, 0, 0, 0.45)";
       ctx.beginPath();
       ctx.roundRect(plateX, plateY, plateW, plateH, cornerRadius);
       ctx.fill();
 
-      // Subtle inner border (glass edge)
-      ctx.strokeStyle = `rgba(255, 255, 255, ${state.plateAlpha * 0.08 * m})`;
-      ctx.lineWidth = 1;
+      // Soft glow border (subtle light edge instead of hard outline)
+      ctx.globalAlpha = state.plateAlpha * 0.15 * m;
+      ctx.strokeStyle = "#ffffff";
+      ctx.lineWidth = 0.5;
       ctx.beginPath();
       ctx.roundRect(plateX + 0.5, plateY + 0.5, plateW - 1, plateH - 1, cornerRadius);
       ctx.stroke();
 
-      // Primary color left edge accent
-      ctx.globalAlpha = state.plateAlpha * 0.95 * m;
+      // Primary color left edge accent (thin, elegant)
+      ctx.globalAlpha = state.plateAlpha * 0.9 * m;
       ctx.fillStyle = brandKit.primaryColor;
       ctx.beginPath();
-      ctx.roundRect(plateX, plateY, Math.round(4 * scale), plateH, [cornerRadius, 0, 0, cornerRadius]);
+      ctx.roundRect(plateX, plateY, Math.round(3 * scale), plateH, [cornerRadius, 0, 0, cornerRadius]);
       ctx.fill();
 
       // Channel name text
