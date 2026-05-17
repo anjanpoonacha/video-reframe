@@ -96,7 +96,7 @@ export async function exportVideo(config: ExportConfig): Promise<Blob> {
 
   // Secondary canvas for cross-fade blending (D-20)
   const fadeCanvas = new OffscreenCanvas(encW, encH);
-  const fadeCtx = fadeCanvas.getContext("2d")!;
+  const fadeCtx = fadeCanvas.getContext("2d")! as unknown as CanvasRenderingContext2D;
 
   let encodedFrames = 0;
   let lastRenderedFrame: ImageData | null = null;

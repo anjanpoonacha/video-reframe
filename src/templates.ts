@@ -241,7 +241,7 @@ export const lowerThirdTemplate: TemplateDefinition = {
 
 // --- Pro Pack Composite Template ---
 // Bundles: animated intro bumper, enhanced lower-third with handle,
-// kinetic text, and persistent watermark into one cohesive overlay.
+// and persistent watermark into one cohesive overlay.
 
 export const proPackTemplate: TemplateDefinition = {
   name: "Pro Pack",
@@ -262,9 +262,6 @@ export const proPackTemplate: TemplateDefinition = {
       lowerTextAlpha: 0,
       lowerHandleAlpha: 0,
       lowerMasterAlpha: 1,
-      // Kinetic text
-      kineticY: 30,
-      kineticAlpha: 0,
       // Watermark
       watermarkAlpha: 0,
     };
@@ -290,11 +287,6 @@ export const proPackTemplate: TemplateDefinition = {
       .to(state, { lowerHandleAlpha: 1, duration: 0.3, ease: "power2.out" }, 2.8)
       // Fade out at 5.5s (3s hold from 2.5s)
       .to(state, { lowerMasterAlpha: 0, duration: 0.8, ease: "power2.inOut" }, 5.5);
-
-    // KINETIC TEXT (3.0s–5.7s)
-    tl.to(state, { kineticY: 0, kineticAlpha: 1, duration: 0.3, ease: "power2.out" }, 3.0)
-      // Hold then exit at 5.3s
-      .to(state, { kineticY: 30, kineticAlpha: 0, duration: 0.4, ease: "power2.inOut" }, 5.3);
 
     const render: OverlayRenderFn = (ctx, time, w, h) => {
       ctx.save();
@@ -425,25 +417,7 @@ export const proPackTemplate: TemplateDefinition = {
         }
       }
 
-      // --- KINETIC TEXT (renders if time >= 3.0 AND time < 5.7) ---
-      if (time >= 3.0 && time < 5.7 && state.kineticAlpha > 0) {
-        ctx.globalAlpha = state.kineticAlpha;
-        ctx.fillStyle = "#ffffff";
-        ctx.shadowOffsetX = 2;
-        ctx.shadowOffsetY = 2;
-        ctx.shadowColor = "rgba(0,0,0,0.5)";
-        ctx.shadowBlur = 4;
-        const kFontSize = Math.round(h * 0.08);
-        ctx.font = `bold ${kFontSize}px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;
-        ctx.textAlign = "center";
-        ctx.textBaseline = "middle";
-        ctx.fillText("PREMIUM CONTENT", w / 2, h / 2 + state.kineticY * scale);
-        // Reset shadow
-        ctx.shadowOffsetX = 0;
-        ctx.shadowOffsetY = 0;
-        ctx.shadowColor = "transparent";
-        ctx.shadowBlur = 0;
-      }
+
 
       ctx.restore();
     };
