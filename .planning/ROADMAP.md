@@ -13,7 +13,7 @@ Transform the existing crop-and-export pipeline into a branded content productio
 - [ ] **Phase 1: Overlay-Ready Export** - Memory-safe export pipeline with overlay composition injection point
 - [ ] **Phase 2: Brand Kit & Templates** - User configures brand identity and template engine renders overlays frame-by-frame
 - [x] **Phase 3: Animated Overlays** - Full branded output with intro, lower third, text, watermark, and transitions
-- [ ] **Phase 4: Performance Hardening** - Smooth export on Snapdragon 770 class devices without OOM or thermal throttle
+- [x] **Phase 4: Performance Hardening** - Smooth export on Snapdragon 770 class devices without OOM or thermal throttle
 
 ## Phase Details
 
@@ -79,7 +79,7 @@ Plans:
 
 Plans:
 - [x] 04-01-PLAN.md — Device tier detection + adaptive export pipeline (resolution, backpressure, getImageData elimination)
-- [ ] 04-02-PLAN.md — Template render optimization + thermal pressure detection
+- [x] 04-02-PLAN.md — Template render optimization + thermal pressure detection
 
 ## Progress
 
@@ -91,4 +91,4 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 | 1. Overlay-Ready Export | 1/1 | Complete | 2026-05-17 |
 | 2. Brand Kit & Templates | 2/2 | Complete | 2026-05-17 |
 | 3. Animated Overlays | 2/2 | Complete | 2026-05-17 |
-| 4. Performance Hardening | 1/2 | In Progress | - |
+| 4. Performance Hardening | 2/2 | Complete | 2026-05-17 |
