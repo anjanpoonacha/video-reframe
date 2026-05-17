@@ -249,11 +249,15 @@ export const lowerThirdTemplate: TemplateDefinition = {
 // Bundles: animated intro bumper, enhanced lower-third with handle,
 // and persistent watermark into one cohesive overlay.
 
-export const proPackTemplate: TemplateDefinition = {
+export const proPackTemplate: TemplateDefinition & { createWithEffects(brandKit: BrandKit, effects: EffectOptions): Promise<TemplateInstance> } = {
   name: "Pro Pack",
   duration: Infinity,
 
   async create(brandKit: BrandKit): Promise<TemplateInstance> {
+    return this.createWithEffects(brandKit, { intro: true, lowerThird: true, watermark: true });
+  },
+
+  async createWithEffects(brandKit: BrandKit, effects: EffectOptions): Promise<TemplateInstance> {
     const logoBitmap = brandKit.logo ? await decodeLogo(brandKit.logo) : null;
 
     // D-07: Pre-compute text widths at create() time (avoid per-frame measureText)
@@ -311,6 +315,7 @@ export const proPackTemplate: TemplateDefinition = {
       // D-16: Watermark-only fast path — after lower-third fades (6.3s+), only watermark
       // renders. Skip intro and lower-third drawing entirely for the majority of frames.
       if (time >= 6.3) {
+        if (!effects.watermark) { ctx.restore(); return; }
         const wmSize = Math.round(w * 0.05);
         const pos = getLogoPosition(brandKit.logoPosition, wmSize, wmSize, w, h);
         ctx.globalAlpha = state.watermarkAlpha * 0.25;
@@ -330,8 +335,8 @@ export const proPackTemplate: TemplateDefinition = {
         return;
       }
 
-      // --- INTRO BUMPER (renders if time < 2.5s) ---
-      if (time < 2.5) {
+      // --- INTRO BUMPER (renders if time < 2.5s AND intro enabled) ---
+      if (time < 2.5 && effects.intro) {
         // Dark vignette
         if (state.introVignetteAlpha > 0) {
           ctx.globalAlpha = state.introVignetteAlpha;
@@ -375,8 +380,8 @@ export const proPackTemplate: TemplateDefinition = {
         }
       }
 
-      // --- WATERMARK (renders if time >= 2.5s) ---
-      if (time >= 2.5 && state.watermarkAlpha > 0) {
+      // --- WATERMARK (renders if time >= 2.5s AND watermark enabled) ---
+      if (effects.watermark && time >= 2.5 && state.watermarkAlpha > 0) {
         const wmSize = Math.round(w * 0.05);
         const pos = getLogoPosition(brandKit.logoPosition, wmSize, wmSize, w, h);
         ctx.globalAlpha = state.watermarkAlpha * 0.25;
@@ -393,8 +398,8 @@ export const proPackTemplate: TemplateDefinition = {
         }
       }
 
-      // --- LOWER THIRD (renders if time >= 2.5 AND time < 6.3) ---
-      if (time >= 2.5 && time < 6.3) {
+      // --- LOWER THIRD (renders if time >= 2.5 AND time < 6.3 AND lowerThird enabled) ---
+      if (effects.lowerThird && time >= 2.5 && time < 6.3) {
         const m = state.lowerMasterAlpha;
         if (m > 0) {
           const plateH = Math.round(56 * scale);
@@ -481,28 +486,8 @@ export interface EffectOptions {
 
 export async function getActiveTemplate(effects?: EffectOptions): Promise<TemplateInstance> {
   const brandKit = loadBrandKit();
-  const instance = await proPackTemplate.create(brandKit);
-
-  if (!effects || (effects.intro && effects.lowerThird && effects.watermark)) {
-    return instance;
-  }
-
-  // Wrap render to skip disabled effects by time gating
-  const originalRender = instance.render;
-  const wrappedRender: typeof instance.render = (ctx, time, w, h) => {
-    // Intro: 0–2.5s, Lower third: 2.5–6.3s, Watermark: 2.5s+
-    const introActive = time < 2.5;
-    const lowerThirdActive = time >= 2.5 && time < 6.3;
-    const watermarkOnly = time >= 6.3;
-
-    if (introActive && !effects.intro) return;
-    if (watermarkOnly && !effects.watermark) return;
-    if (lowerThirdActive && !effects.lowerThird && !effects.watermark) return;
-
-    originalRender(ctx, time, w, h);
-  };
-
-  return { render: wrappedRender, dispose: instance.dispose };
+  const opts = effects || { intro: true, lowerThird: true, watermark: true };
+  return proPackTemplate.createWithEffects(brandKit, opts);
 }
 
 export type { BrandKit };
