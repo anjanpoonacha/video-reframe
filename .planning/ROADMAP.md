@@ -45,7 +45,7 @@ Plans:
 **UI hint**: yes
 
 Plans:
-- [ ] 02-01-PLAN.md — Brand kit settings panel with localStorage persistence (logo, colors, position)
+- [x] 02-01-PLAN.md — Brand kit settings panel with localStorage persistence (logo, colors, position)
 - [ ] 02-02-PLAN.md — Template engine with GSAP-driven lower-third + export integration
 
 ### Phase 3: Animated Overlays
