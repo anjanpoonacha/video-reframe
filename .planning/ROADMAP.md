@@ -46,7 +46,7 @@ Plans:
 
 Plans:
 - [x] 02-01-PLAN.md — Brand kit settings panel with localStorage persistence (logo, colors, position)
-- [ ] 02-02-PLAN.md — Template engine with GSAP-driven lower-third + export integration
+- [x] 02-02-PLAN.md — Template engine with GSAP-driven lower-third + export integration
 
 ### Phase 3: Animated Overlays
 **Goal**: Exported video looks professionally produced — animated intro, lower third, kinetic text, persistent watermark, and smooth transitions between cuts
@@ -87,6 +87,6 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Overlay-Ready Export | 1/1 | Complete | 2026-05-17 |
-| 2. Brand Kit & Templates | 0/? | Not started | - |
+| 2. Brand Kit & Templates | 2/2 | Complete | 2026-05-17 |
 | 3. Animated Overlays | 0/? | Not started | - |
 | 4. Performance Hardening | 0/? | Not started | - |
