@@ -1,5 +1,6 @@
 import { exportVideo } from "./export";
 import { renderTestOverlay } from "./overlay";
+import { initBrandKitPanel } from "./brand-kit";
 import "./styles.css";
 
 // --- Types ---
@@ -632,6 +633,9 @@ document.addEventListener("keydown", (e) => {
 
 // Init drag on load
 setupCropDrag();
+
+// Init brand kit settings panel
+initBrandKitPanel();
 
 // Delete keyframe button
 $("deleteKeyframeBtn").addEventListener("click", () => {

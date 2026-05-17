@@ -13,6 +13,68 @@
 <div class="header">
   <h1>Video Reframe</h1>
   <p>16:9 → 9:16 · 100% on-device · zero cost</p>
+  <button class="settings-toggle" id="settingsToggle" aria-label="Settings">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="12" cy="12" r="3"/>
+      <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68 1.65 1.65 0 0 0 10 3.17V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+    </svg>
+  </button>
+</div>
+
+<!-- Brand Kit Settings Panel -->
+<div class="settings-panel hidden" id="brandKitPanel">
+  <div class="settings-panel-header">
+    <span class="settings-panel-title">Brand Kit</span>
+    <button class="settings-close" id="settingsClose" aria-label="Close">✕</button>
+  </div>
+
+  <div class="settings-section">
+    <label class="settings-label">Logo</label>
+    <div class="logo-upload-row">
+      <img id="logoPreview" class="logo-preview" alt="Logo preview" style="display:none">
+      <label class="btn btn-small btn-secondary" for="logoInput">Choose File</label>
+      <input type="file" id="logoInput" accept="image/png,image/svg+xml" style="display:none">
+      <button class="btn btn-small btn-danger" id="logoRemove" style="display:none">Remove</button>
+    </div>
+  </div>
+
+  <div class="settings-section">
+    <label class="settings-label">Colors</label>
+    <div class="color-row">
+      <span class="color-label">Primary</span>
+      <input type="color" id="primaryColorPicker" value="#ff6b35">
+      <input type="text" class="color-hex" id="primaryColorHex" value="#ff6b35" maxlength="7">
+    </div>
+    <div class="color-row">
+      <span class="color-label">Accent</span>
+      <input type="color" id="accentColorPicker" value="#1a1a2e">
+      <input type="text" class="color-hex" id="accentColorHex" value="#1a1a2e" maxlength="7">
+    </div>
+  </div>
+
+  <div class="settings-section">
+    <label class="settings-label">Logo Position</label>
+    <div class="position-grid">
+      <label class="position-option">
+        <input type="radio" name="logoPosition" id="positionTL" value="TL" checked>
+        <span>↖ Top Left</span>
+      </label>
+      <label class="position-option">
+        <input type="radio" name="logoPosition" id="positionTR" value="TR">
+        <span>↗ Top Right</span>
+      </label>
+      <label class="position-option">
+        <input type="radio" name="logoPosition" id="positionBL" value="BL">
+        <span>↙ Bottom Left</span>
+      </label>
+      <label class="position-option">
+        <input type="radio" name="logoPosition" id="positionBR" value="BR">
+        <span>↘ Bottom Right</span>
+      </label>
+    </div>
+  </div>
+
+  <div class="status" id="brandKitStatus"></div>
 </div>
 
 <!-- Upload -->
