@@ -110,6 +110,12 @@ export const lowerThirdTemplate: TemplateDefinition = {
   async create(brandKit: BrandKit): Promise<TemplateInstance> {
     const logoBitmap = brandKit.logo ? await decodeLogo(brandKit.logo) : null;
 
+    // D-07: Pre-compute text widths at create() time (avoid per-frame measureText)
+    const measureCanvas = new OffscreenCanvas(1, 1);
+    const measureCtx = measureCanvas.getContext("2d")!;
+    measureCtx.font = `600 18px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;
+    const channelNameWidth = measureCtx.measureText(brandKit.channelName).width;
+
     // Animation state driven by GSAP seek
     const state = {
       accentBarWidth: 0,
@@ -250,6 +256,14 @@ export const proPackTemplate: TemplateDefinition = {
   async create(brandKit: BrandKit): Promise<TemplateInstance> {
     const logoBitmap = brandKit.logo ? await decodeLogo(brandKit.logo) : null;
 
+    // D-07: Pre-compute text widths at create() time (avoid per-frame measureText)
+    const measureCanvas = new OffscreenCanvas(1, 1);
+    const measureCtx = measureCanvas.getContext("2d")!;
+    measureCtx.font = `600 18px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;
+    const channelNameWidth = measureCtx.measureText(brandKit.channelName).width;
+    measureCtx.font = `500 14px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;
+    const channelHandleWidth = measureCtx.measureText(brandKit.channelHandle || "").width;
+
     const state = {
       // Intro bumper
       introLogoScale: 0.8,
@@ -293,6 +307,28 @@ export const proPackTemplate: TemplateDefinition = {
       tl.seek(time);
 
       const scale = w / 1080;
+
+      // D-16: Watermark-only fast path — after lower-third fades (6.3s+), only watermark
+      // renders. Skip intro and lower-third drawing entirely for the majority of frames.
+      if (time >= 6.3) {
+        const wmSize = Math.round(w * 0.05);
+        const pos = getLogoPosition(brandKit.logoPosition, wmSize, wmSize, w, h);
+        ctx.globalAlpha = state.watermarkAlpha * 0.25;
+
+        if (logoBitmap) {
+          ctx.save();
+          ctx.beginPath();
+          ctx.arc(pos.x + wmSize / 2, pos.y + wmSize / 2, wmSize / 2, 0, Math.PI * 2);
+          ctx.clip();
+          ctx.drawImage(logoBitmap, pos.x, pos.y, wmSize, wmSize);
+          ctx.restore();
+        } else {
+          drawDefaultLogo(ctx, pos.x, pos.y, wmSize, brandKit);
+        }
+
+        ctx.restore();
+        return;
+      }
 
       // --- INTRO BUMPER (renders if time < 2.5s) ---
       if (time < 2.5) {
