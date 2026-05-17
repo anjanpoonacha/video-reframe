@@ -78,7 +78,7 @@ Plans:
 **Plans:** 2 plans
 
 Plans:
-- [ ] 04-01-PLAN.md — Device tier detection + adaptive export pipeline (resolution, backpressure, getImageData elimination)
+- [x] 04-01-PLAN.md — Device tier detection + adaptive export pipeline (resolution, backpressure, getImageData elimination)
 - [ ] 04-02-PLAN.md — Template render optimization + thermal pressure detection
 
 ## Progress
@@ -90,5 +90,5 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 |-------|----------------|--------|-----------|
 | 1. Overlay-Ready Export | 1/1 | Complete | 2026-05-17 |
 | 2. Brand Kit & Templates | 2/2 | Complete | 2026-05-17 |
-| 3. Animated Overlays | 1/2 | In Progress | - |
-| 4. Performance Hardening | 0/? | Not started | - |
+| 3. Animated Overlays | 2/2 | Complete | 2026-05-17 |
+| 4. Performance Hardening | 1/2 | In Progress | - |

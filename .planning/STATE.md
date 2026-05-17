@@ -5,23 +5,23 @@
 See: .planning/PROJECT.md (updated 2026-05-17)
 
 **Core value:** Landscape video → professional-looking branded vertical short in under 2 minutes, from a phone.
-**Current focus:** Phase 3: Animated Overlays (Complete)
+**Current focus:** Phase 4: Performance Hardening (In Progress)
 
 ## Current Position
 
-Phase: 3 of 4 (Animated Overlays)
-Plan: 2 of 2 in current phase
-Status: Complete
-Last activity: 2026-05-17 — Completed 03-02 Cross-fade transitions
+Phase: 4 of 4 (Performance Hardening)
+Plan: 1 of 2 in current phase
+Status: In Progress
+Last activity: 2026-05-17 — Completed 04-01 Device tier detection & adaptive export
 
-Progress: [████████░░] 75% (Phase 3 complete, Phase 4 next)
+Progress: [████████░░] 87% (Phase 4 plan 1/2 complete)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 5
+- Total plans completed: 6
 - Average duration: 2 min
-- Total execution time: 9 min
+- Total execution time: 11 min
 
 **By Phase:**
 
@@ -30,6 +30,7 @@ Progress: [████████░░] 75% (Phase 3 complete, Phase 4 next)
 | 01-overlay-ready-export | 1 | 3 min | 3 min |
 | 02-brand-kit-templates | 2 | 3 min | 1.5 min |
 | 03-animated-overlays | 2 | 3 min | 1.5 min |
+| 04-performance-hardening | 1 | 2 min | 2 min |
 
 ## Accumulated Context
 
@@ -61,5 +62,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-05-17
-Stopped at: Completed 03-02-PLAN.md
+Stopped at: Completed 04-01-PLAN.md
 Resume file: None
