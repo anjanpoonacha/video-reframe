@@ -1,4 +1,5 @@
-import { Muxer, ArrayBufferTarget } from "mp4-muxer";
+import { exportVideo } from "./export";
+import { renderTestOverlay } from "./overlay";
 import "./styles.css";
 
 // --- Types ---
@@ -405,114 +406,48 @@ $("exportBtn").addEventListener("click", async () => {
     $("exportStatus").className = "status error";
     return;
   }
+
   ($("exportBtn") as HTMLButtonElement).disabled = true;
   $("exportStatus").textContent = "Encoding...";
-
   const totalStart = performance.now();
-  const srcW = videoEl.videoWidth;
-  const srcH = videoEl.videoHeight;
-  const duration = videoEl.duration;
-  const fps = 30;
-  const totalFrames = Math.round(duration * fps);
-  const outW = Math.min(1080, Math.round(srcH * (9 / 16)));
-  const outH = Math.min(1920, srcH);
-  const encW = outW - (outW % 2);
-  const encH = outH - (outH % 2);
-  const cropSrcW = srcH * (9 / 16);
 
-  const useWC = "VideoEncoder" in window;
-  let muxer: Muxer<ArrayBufferTarget> | undefined;
-  let encoder: VideoEncoder | undefined;
-
-  if (useWC) {
-    muxer = new Muxer({
-      target: new ArrayBufferTarget(),
-      video: { codec: "avc", width: encW, height: encH },
-      fastStart: "in-memory",
+  try {
+    const blob = await exportVideo({
+      videoEl,
+      keyframes,
+      skipRanges,
+      overlay: renderTestOverlay,
+      onProgress: (pct) => {
+        ($("exportProgress") as HTMLElement).style.width = pct + "%";
+        $("exportStatus").textContent = `Encoding... ${pct}%`;
+      },
     });
-    encoder = new VideoEncoder({
-      output: (chunk, meta) => muxer!.addVideoChunk(chunk, meta),
-      error: console.error,
-    });
-    encoder.configure({
-      codec: "avc1.640028",
-      width: encW,
-      height: encH,
-      bitrate: 4_000_000,
-      framerate: fps,
-    });
-  }
 
-  const canvas = document.createElement("canvas");
-  canvas.width = encW;
-  canvas.height = encH;
-  const ctx = canvas.getContext("2d")!;
+    ($("exportProgress") as HTMLElement).style.width = "100%";
+    const totalTime = ((performance.now() - totalStart) / 1000).toFixed(1);
+    $("exportStatus").textContent = "Done!";
+    $("exportStatus").className = "status success";
 
-  let encodedFrames = 0;
-
-  for (let i = 0; i < totalFrames; i++) {
-    const t = i / fps;
-
-    // Skip if in a skip range
-    if (skipRanges.some((r) => t >= r.start && t < r.end)) continue;
-
-    // Get interpolated crop position from frames array
-    const cropX = getPositionAtTime(t, duration);
-    const maxX = srcW - cropSrcW;
-    const srcX = Math.max(0, Math.min(maxX, maxX * cropX));
-
-    videoEl.currentTime = t;
-    await new Promise((r) =>
-      videoEl!.addEventListener("seeked", r, { once: true })
-    );
-    ctx.drawImage(videoEl, srcX, 0, cropSrcW, srcH, 0, 0, encW, encH);
-
-    if (useWC && encoder) {
-      const frame = new VideoFrame(canvas, {
-        timestamp: encodedFrames * (1_000_000 / fps),
-        duration: 1_000_000 / fps,
-      });
-      encoder.encode(frame, { keyFrame: encodedFrames % 60 === 0 });
-      frame.close();
-    }
-
-    encodedFrames++;
-    const pct = Math.round((i / totalFrames) * 100);
-    ($("exportProgress") as HTMLElement).style.width = pct + "%";
-    $("exportStatus").textContent = `Encoding... ${pct}%`;
-    if (i % 5 === 0) await new Promise((r) => setTimeout(r, 0));
-  }
-
-  // Finalize
-  if (!useWC || !encoder || !muxer) {
-    $("exportStatus").textContent =
-      "Export failed: WebCodecs not supported in this browser.";
+    const url = URL.createObjectURL(blob);
+    ($("outputVideo") as HTMLVideoElement).src = url;
+    $("metricSize").textContent = (blob.size / 1024 / 1024).toFixed(1) + "MB";
+    $("metricTotal").textContent = totalTime + "s";
+    const encW = Math.min(1080, Math.round(videoEl.videoHeight * (9 / 16)));
+    const encH = Math.min(1920, videoEl.videoHeight);
+    $("metricRes").textContent = `${encW - (encW % 2)}x${encH - (encH % 2)}`;
+    $("resultCard").classList.remove("hidden");
+    $("downloadBtn").onclick = () => {
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "reframed_9x16.mp4";
+      a.click();
+    };
+  } catch (err) {
+    $("exportStatus").textContent = `Export failed: ${err instanceof Error ? err.message : "Unknown error"}`;
     $("exportStatus").className = "status error";
-    return;
+  } finally {
+    ($("exportBtn") as HTMLButtonElement).disabled = false;
   }
-
-  await encoder.flush();
-  muxer.finalize();
-  const blob = new Blob([muxer.target.buffer], { type: "video/mp4" });
-
-  ($("exportProgress") as HTMLElement).style.width = "100%";
-  const totalTime = ((performance.now() - totalStart) / 1000).toFixed(1);
-  $("exportStatus").textContent = "Done!";
-  $("exportStatus").className = "status success";
-
-  const url = URL.createObjectURL(blob);
-  ($("outputVideo") as HTMLVideoElement).src = url;
-  $("metricSize").textContent = (blob.size / 1024 / 1024).toFixed(1) + "MB";
-  $("metricTotal").textContent = totalTime + "s";
-  $("metricRes").textContent = `${encW}x${encH}`;
-  $("resultCard").classList.remove("hidden");
-  $("downloadBtn").onclick = () => {
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "reframed_9x16.mp4";
-    a.click();
-  };
-  ($("exportBtn") as HTMLButtonElement).disabled = false;
 });
 
 // --- Helpers ---
