@@ -417,6 +417,7 @@ $("exportBtn").addEventListener("click", async () => {
       keyframes,
       skipRanges,
       overlay: renderTestOverlay,
+      maxDuration: 10,
       onProgress: (pct) => {
         ($("exportProgress") as HTMLElement).style.width = pct + "%";
         $("exportStatus").textContent = `Encoding... ${pct}%`;

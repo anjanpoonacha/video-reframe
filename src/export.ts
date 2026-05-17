@@ -9,6 +9,7 @@ export interface ExportConfig {
   skipRanges: { start: number; end: number }[];
   overlay: OverlayRenderFn;
   onProgress: (pct: number) => void;
+  maxDuration?: number;
 }
 
 function getPositionAtTime(
@@ -34,11 +35,13 @@ function getPositionAtTime(
 }
 
 export async function exportVideo(config: ExportConfig): Promise<Blob> {
-  const { videoEl, keyframes, skipRanges, overlay, onProgress } = config;
+  const { videoEl, keyframes, skipRanges, overlay, onProgress, maxDuration } = config;
 
   const srcW = videoEl.videoWidth;
   const srcH = videoEl.videoHeight;
-  const duration = videoEl.duration;
+  const duration = maxDuration
+    ? Math.min(videoEl.duration, maxDuration)
+    : videoEl.duration;
   const fps = 30;
   const totalFrames = Math.round(duration * fps);
   const outW = Math.min(1080, Math.round(srcH * (9 / 16)));
