@@ -1,7 +1,8 @@
-// --- Export pipeline with overlay injection and backpressure ---
+// --- Export pipeline with overlay injection, backpressure, and adaptive performance ---
 
 import { Muxer, ArrayBufferTarget } from "mp4-muxer";
 import type { OverlayRenderFn } from "./overlay";
+import { detectDeviceTier, getPerformancePreset, type DeviceTier } from "./device-tier";
 
 export interface ExportConfig {
   videoEl: HTMLVideoElement;
@@ -10,6 +11,7 @@ export interface ExportConfig {
   overlay: OverlayRenderFn;
   onProgress: (pct: number) => void;
   maxDuration?: number;
+  deviceTier?: DeviceTier;
 }
 
 function getPositionAtTime(
@@ -37,6 +39,9 @@ function getPositionAtTime(
 export async function exportVideo(config: ExportConfig): Promise<Blob> {
   const { videoEl, keyframes, skipRanges, overlay, onProgress, maxDuration } = config;
 
+  const tier = config.deviceTier ?? detectDeviceTier();
+  const preset = getPerformancePreset(tier);
+
   const srcW = videoEl.videoWidth;
   const srcH = videoEl.videoHeight;
   const duration = maxDuration
@@ -44,8 +49,8 @@ export async function exportVideo(config: ExportConfig): Promise<Blob> {
     : videoEl.duration;
   const fps = 30;
   const totalFrames = Math.round(duration * fps);
-  const outW = Math.min(1080, Math.round(srcH * (9 / 16)));
-  const outH = Math.min(1920, srcH);
+  const outW = Math.min(preset.outputWidth, Math.round(srcH * (9 / 16)));
+  const outH = Math.min(preset.outputHeight, srcH);
   const encW = outW - (outW % 2);
   const encH = outH - (outH % 2);
   const cropSrcW = srcH * (9 / 16);
@@ -98,8 +103,13 @@ export async function exportVideo(config: ExportConfig): Promise<Blob> {
   const fadeCanvas = new OffscreenCanvas(encW, encH);
   const fadeCtx = fadeCanvas.getContext("2d")! as unknown as CanvasRenderingContext2D;
 
+  // Previous frame buffer for cross-fade — allocated once, reused via drawImage (D-03, D-04)
+  const prevCanvas = new OffscreenCanvas(encW, encH);
+  const prevCtx = prevCanvas.getContext("2d")! as unknown as CanvasRenderingContext2D;
+  let hasPrevFrame = false;
+
   let encodedFrames = 0;
-  let lastRenderedFrame: ImageData | null = null;
+  let consecutiveFrames = 0;
 
   for (let i = 0; i < totalFrames; i++) {
     const t = i / fps;
@@ -118,7 +128,7 @@ export async function exportVideo(config: ExportConfig): Promise<Blob> {
     );
 
     // Cross-fade at cut boundaries (D-19, D-20, D-21)
-    if (cutEntryFrames.has(i) && lastRenderedFrame) {
+    if (cutEntryFrames.has(i) && hasPrevFrame) {
       for (let j = 0; j < FADE_FRAMES; j++) {
         const alpha = (j + 1) / (FADE_FRAMES + 1);
 
@@ -126,8 +136,8 @@ export async function exportVideo(config: ExportConfig): Promise<Blob> {
         fadeCtx.drawImage(videoEl, srcX, 0, cropSrcW, srcH, 0, 0, encW, encH);
         overlay(fadeCtx, t, encW, encH);
 
-        // Blend: put previous frame on main, overlay new at progressive alpha
-        ctx.putImageData(lastRenderedFrame, 0, 0);
+        // Blend: draw previous frame on main, overlay new at progressive alpha
+        ctx.drawImage(prevCanvas, 0, 0);
         ctx.globalAlpha = alpha;
         ctx.drawImage(fadeCanvas, 0, 0);
         ctx.globalAlpha = 1.0;
@@ -140,7 +150,7 @@ export async function exportVideo(config: ExportConfig): Promise<Blob> {
             duration: frameDuration,
           });
 
-          while (encoder.encodeQueueSize > 5) {
+          while (encoder.encodeQueueSize > preset.maxEncodeQueue) {
             await new Promise((r) =>
               encoder.addEventListener("dequeue", r, { once: true })
             );
@@ -152,6 +162,13 @@ export async function exportVideo(config: ExportConfig): Promise<Blob> {
         }
 
         encodedFrames++;
+        consecutiveFrames++;
+
+        // Yield gate: adaptive frequency + hard cap (D-18)
+        if (consecutiveFrames >= preset.yieldEvery || consecutiveFrames >= preset.maxConsecutive) {
+          await new Promise((r) => setTimeout(r, preset.yieldMs));
+          consecutiveFrames = 0;
+        }
       }
     }
 
@@ -170,7 +187,7 @@ export async function exportVideo(config: ExportConfig): Promise<Blob> {
       });
 
       // Backpressure gate: wait if encoder queue is saturated
-      while (encoder.encodeQueueSize > 5) {
+      while (encoder.encodeQueueSize > preset.maxEncodeQueue) {
         await new Promise((r) =>
           encoder.addEventListener("dequeue", r, { once: true })
         );
@@ -181,14 +198,19 @@ export async function exportVideo(config: ExportConfig): Promise<Blob> {
       frame?.close();
     }
 
-    // Store rendered frame for potential cross-fade at next cut boundary
-    lastRenderedFrame = ctx.getImageData(0, 0, encW, encH);
+    // Store rendered frame for potential cross-fade at next cut boundary (GPU-accelerated copy)
+    prevCtx.drawImage(canvas, 0, 0);
+    hasPrevFrame = true;
 
     encodedFrames++;
+    consecutiveFrames++;
     onProgress(Math.round((i / progressTotal) * 100));
 
-    // UI yield every 5 frames
-    if (i % 5 === 0) await new Promise((r) => setTimeout(r, 0));
+    // Yield gate: adaptive frequency + hard cap (D-18)
+    if (consecutiveFrames >= preset.yieldEvery || consecutiveFrames >= preset.maxConsecutive) {
+      await new Promise((r) => setTimeout(r, preset.yieldMs));
+      consecutiveFrames = 0;
+    }
   }
 
   // D-05: Safety sweep — no-op since frames are closed per-iteration in try/finally.
