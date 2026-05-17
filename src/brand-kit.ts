@@ -1,4 +1,5 @@
 export interface BrandKit {
+  channelName: string;
   logo: string | null;
   primaryColor: string;
   accentColor: string;
@@ -8,9 +9,10 @@ export interface BrandKit {
 const BRAND_KIT_KEY = "vr-brand-kit";
 
 const DEFAULT_BRAND_KIT: BrandKit = {
+  channelName: "My Channel",
   logo: null,
-  primaryColor: "#ff6b35",
-  accentColor: "#1a1a2e",
+  primaryColor: "#6c5ce7",
+  accentColor: "#00cec9",
   logoPosition: "TL",
 };
 
@@ -72,6 +74,14 @@ export function initBrandKitPanel(): void {
   });
   close.addEventListener("click", () => {
     panel.classList.add("hidden");
+  });
+
+  // Channel name
+  const channelNameInput = $("channelNameInput") as HTMLInputElement;
+  channelNameInput.value = kit.channelName;
+  channelNameInput.addEventListener("input", () => {
+    kit.channelName = channelNameInput.value || "My Channel";
+    saveBrandKit(kit);
   });
 
   // Logo upload
