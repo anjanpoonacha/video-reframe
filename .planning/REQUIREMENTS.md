@@ -20,17 +20,17 @@
 
 ### Overlays
 
-- [ ] **OVRL-01**: Animated intro bumper plays at video start (2-3s, uses brand colors + logo)
-- [ ] **OVRL-02**: Animated lower third overlay with channel name/handle
-- [ ] **OVRL-03**: Kinetic text overlay — at least one animated text style with high-energy feel
-- [ ] **OVRL-04**: Logo watermark composited onto every frame of output at chosen position
+- [x] **OVRL-01**: Animated intro bumper plays at video start (2-3s, uses brand colors + logo)
+- [x] **OVRL-02**: Animated lower third overlay with channel name/handle
+- [x] **OVRL-03**: Kinetic text overlay — at least one animated text style with high-energy feel
+- [x] **OVRL-04**: Logo watermark composited onto every frame of output at chosen position
 - [ ] **OVRL-05**: Smooth animated transitions between cut segments (when skip ranges create jumps)
 
 ### Template System
 
 - [ ] **TMPL-01**: Overlay compositions defined as HTML+GSAP timelines (Hyperframes pattern)
 - [ ] **TMPL-02**: Templates rendered frame-by-frame using GSAP seek() + canvas draw
-- [ ] **TMPL-03**: At least 1 cohesive template that applies intro + lower third + watermark as a package
+- [x] **TMPL-03**: At least 1 cohesive template that applies intro + lower third + watermark as a package
 
 ### Performance
 
@@ -78,11 +78,11 @@
 | BRAND-04 | Phase 2: Brand Kit & Templates | Pending |
 | TMPL-01 | Phase 2: Brand Kit & Templates | Pending |
 | TMPL-02 | Phase 2: Brand Kit & Templates | Pending |
-| TMPL-03 | Phase 3: Animated Overlays | Pending |
-| OVRL-01 | Phase 3: Animated Overlays | Pending |
-| OVRL-02 | Phase 3: Animated Overlays | Pending |
-| OVRL-03 | Phase 3: Animated Overlays | Pending |
-| OVRL-04 | Phase 3: Animated Overlays | Pending |
+| TMPL-03 | Phase 3: Animated Overlays | Complete |
+| OVRL-01 | Phase 3: Animated Overlays | Complete |
+| OVRL-02 | Phase 3: Animated Overlays | Complete |
+| OVRL-03 | Phase 3: Animated Overlays | Complete |
+| OVRL-04 | Phase 3: Animated Overlays | Complete |
 | OVRL-05 | Phase 3: Animated Overlays | Pending |
 | PERF-01 | Phase 4: Performance Hardening | Pending |
 | PERF-02 | Phase 4: Performance Hardening | Pending |
