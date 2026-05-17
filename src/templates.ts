@@ -473,9 +473,36 @@ export const TEMPLATE_REGISTRY: TemplateDefinition[] = [lowerThirdTemplate, proP
 
 // --- Active template accessor ---
 
-export async function getActiveTemplate(): Promise<TemplateInstance> {
+export interface EffectOptions {
+  intro: boolean;
+  lowerThird: boolean;
+  watermark: boolean;
+}
+
+export async function getActiveTemplate(effects?: EffectOptions): Promise<TemplateInstance> {
   const brandKit = loadBrandKit();
-  return proPackTemplate.create(brandKit);
+  const instance = await proPackTemplate.create(brandKit);
+
+  if (!effects || (effects.intro && effects.lowerThird && effects.watermark)) {
+    return instance;
+  }
+
+  // Wrap render to skip disabled effects by time gating
+  const originalRender = instance.render;
+  const wrappedRender: typeof instance.render = (ctx, time, w, h) => {
+    // Intro: 0–2.5s, Lower third: 2.5–6.3s, Watermark: 2.5s+
+    const introActive = time < 2.5;
+    const lowerThirdActive = time >= 2.5 && time < 6.3;
+    const watermarkOnly = time >= 6.3;
+
+    if (introActive && !effects.intro) return;
+    if (watermarkOnly && !effects.watermark) return;
+    if (lowerThirdActive && !effects.lowerThird && !effects.watermark) return;
+
+    originalRender(ctx, time, w, h);
+  };
+
+  return { render: wrappedRender, dispose: instance.dispose };
 }
 
 export type { BrandKit };

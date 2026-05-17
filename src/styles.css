@@ -346,6 +346,29 @@ body {
 .position-option:has(input:checked) { border-color: var(--accent); }
 .position-option input[type="radio"] { accent-color: var(--accent); }
 
+.export-options { margin-bottom: 12px; }
+.export-option-group { margin-bottom: 10px; }
+.export-select {
+  width: 100%;
+  padding: 8px 12px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: 14px;
+}
+.effect-toggles { display: flex; gap: 12px; flex-wrap: wrap; }
+.effect-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+.effect-toggle input { accent-color: var(--accent); }
+.effect-toggle:has(input:checked) span { color: var(--text); }
+
 @media (min-width: 768px) {
   body { max-width: 480px; margin: 0 auto; }
 }

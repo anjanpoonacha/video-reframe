@@ -1,5 +1,5 @@
 import { exportVideo } from "./export";
-import { getActiveTemplate } from "./templates";
+import { getActiveTemplate, type EffectOptions } from "./templates";
 import { initBrandKitPanel } from "./brand-kit";
 import "./styles.css";
 
@@ -412,7 +412,15 @@ $("exportBtn").addEventListener("click", async () => {
   $("exportStatus").textContent = "Encoding...";
   const totalStart = performance.now();
 
-  const template = await getActiveTemplate();
+  // Read export options from UI
+  const durationVal = parseInt(($("exportDuration") as HTMLSelectElement).value, 10);
+  const effects: EffectOptions = {
+    intro: ($("effectIntro") as HTMLInputElement).checked,
+    lowerThird: ($("effectLowerThird") as HTMLInputElement).checked,
+    watermark: ($("effectWatermark") as HTMLInputElement).checked,
+  };
+
+  const template = await getActiveTemplate(effects);
 
   try {
     const blob = await exportVideo({
@@ -420,7 +428,7 @@ $("exportBtn").addEventListener("click", async () => {
       keyframes,
       skipRanges,
       overlay: template.render,
-      maxDuration: 10, // dev guard — remove for production
+      maxDuration: durationVal || undefined,
       onProgress: (pct) => {
         ($("exportProgress") as HTMLElement).style.width = pct + "%";
         $("exportStatus").textContent = `Encoding... ${pct}%`;
