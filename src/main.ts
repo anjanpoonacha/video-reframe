@@ -26,11 +26,58 @@ let dragging = false;
 
 const $ = (id: string) => document.getElementById(id)!;
 
+// --- Session persistence ---
+interface SavedSession {
+  fileName: string;
+  fileSize: number;
+  keyframes: Keyframe[];
+  skipRanges: { start: number; end: number }[];
+  numSamples: number;
+}
+
+function saveSession(file: File) {
+  const session: SavedSession = {
+    fileName: file.name,
+    fileSize: file.size,
+    keyframes,
+    skipRanges,
+    numSamples: frames.length,
+  };
+  sessionStorage.setItem("vr-session", JSON.stringify(session));
+}
+
+function loadSession(): SavedSession | null {
+  const raw = sessionStorage.getItem("vr-session");
+  if (!raw) return null;
+  try { return JSON.parse(raw); } catch { return null; }
+}
+
+function clearSession() {
+  sessionStorage.removeItem("vr-session");
+}
+
 // --- Upload ---
+let currentFile: File | null = null;
+let restoreSession = false;
+
 $("fileInput").addEventListener("change", async (e) => {
   const file = (e.target as HTMLInputElement).files?.[0];
   if (!file) return;
 
+  // Check if there's a saved session for the same file
+  const saved = loadSession();
+  if (saved && saved.fileName === file.name && saved.fileSize === file.size) {
+    restoreSession = confirm(
+      "You have unsaved edits for this video. Restore your previous keyframes and cuts?"
+    );
+    if (!restoreSession) clearSession();
+  } else if (saved) {
+    // Different file — clear old session
+    clearSession();
+    restoreSession = false;
+  }
+
+  currentFile = file;
   videoEl = document.createElement("video");
   videoEl.muted = true;
   videoEl.playsInline = true;
@@ -74,6 +121,16 @@ $("analyzeBtn").addEventListener("click", async () => {
   const lastSmoothed = smoothed[smoothed.length - 1]!;
   if (keyframes[keyframes.length - 1]!.time < lastSmoothed.time) {
     keyframes.push({ time: lastSmoothed.time, x: lastSmoothed.x, auto: true });
+  }
+
+  // Restore saved session if user chose to
+  if (restoreSession) {
+    const saved = loadSession();
+    if (saved) {
+      keyframes = saved.keyframes;
+      skipRanges = saved.skipRanges;
+    }
+    restoreSession = false;
   }
 
   // Extract thumbnails and build frame data
@@ -286,6 +343,7 @@ $("markEndBtn").addEventListener("click", () => {
   applySkipRanges();
   renderSkipBar();
   renderFilmstrip();
+  if (currentFile) saveSession(currentFile);
 });
 
 $("undoSkipBtn").addEventListener("click", () => {
@@ -293,6 +351,7 @@ $("undoSkipBtn").addEventListener("click", () => {
   applySkipRanges();
   renderSkipBar();
   renderFilmstrip();
+  if (currentFile) saveSession(currentFile);
 });
 
 function applySkipRanges() {
@@ -498,6 +557,7 @@ function addOrUpdateKeyframe(time: number, x: number, auto = false) {
     keyframes.sort((a, b) => a.time - b.time);
   }
   recomputeFramePositions();
+  if (currentFile) saveSession(currentFile);
 }
 
 function removeKeyframe(time: number) {
@@ -505,6 +565,7 @@ function removeKeyframe(time: number) {
   if (idx !== -1 && keyframes.length > 1) {
     keyframes.splice(idx, 1);
     recomputeFramePositions();
+    if (currentFile) saveSession(currentFile);
   }
 }
 
