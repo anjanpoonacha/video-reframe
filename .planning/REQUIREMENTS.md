@@ -69,24 +69,24 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| EXPORT-01 | Phase 1 | Pending |
-| EXPORT-02 | Phase 1 | Pending |
-| EXPORT-03 | Phase 1 | Pending |
-| BRAND-01 | Phase 2 | Pending |
-| BRAND-02 | Phase 2 | Pending |
-| BRAND-03 | Phase 2 | Pending |
-| BRAND-04 | Phase 2 | Pending |
-| TMPL-01 | Phase 2 | Pending |
-| TMPL-02 | Phase 2 | Pending |
-| TMPL-03 | Phase 3 | Pending |
-| OVRL-01 | Phase 3 | Pending |
-| OVRL-02 | Phase 3 | Pending |
-| OVRL-03 | Phase 3 | Pending |
-| OVRL-04 | Phase 3 | Pending |
-| OVRL-05 | Phase 3 | Pending |
-| PERF-01 | Phase 4 | Pending |
-| PERF-02 | Phase 4 | Pending |
-| PERF-03 | Phase 4 | Pending |
+| EXPORT-01 | Phase 1: Overlay-Ready Export | Pending |
+| EXPORT-02 | Phase 1: Overlay-Ready Export | Pending |
+| EXPORT-03 | Phase 1: Overlay-Ready Export | Pending |
+| BRAND-01 | Phase 2: Brand Kit & Templates | Pending |
+| BRAND-02 | Phase 2: Brand Kit & Templates | Pending |
+| BRAND-03 | Phase 2: Brand Kit & Templates | Pending |
+| BRAND-04 | Phase 2: Brand Kit & Templates | Pending |
+| TMPL-01 | Phase 2: Brand Kit & Templates | Pending |
+| TMPL-02 | Phase 2: Brand Kit & Templates | Pending |
+| TMPL-03 | Phase 3: Animated Overlays | Pending |
+| OVRL-01 | Phase 3: Animated Overlays | Pending |
+| OVRL-02 | Phase 3: Animated Overlays | Pending |
+| OVRL-03 | Phase 3: Animated Overlays | Pending |
+| OVRL-04 | Phase 3: Animated Overlays | Pending |
+| OVRL-05 | Phase 3: Animated Overlays | Pending |
+| PERF-01 | Phase 4: Performance Hardening | Pending |
+| PERF-02 | Phase 4: Performance Hardening | Pending |
+| PERF-03 | Phase 4: Performance Hardening | Pending |
 
 **Coverage:**
 - v1 requirements: 18 total
@@ -95,4 +95,4 @@
 
 ---
 *Requirements defined: 2026-05-17*
-*Last updated: 2026-05-17 after initial definition*
+*Last updated: 2026-05-17 after roadmap creation*
