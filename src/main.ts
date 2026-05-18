@@ -28,13 +28,60 @@ let dragging = false;
 
 const $ = (id: string) => document.getElementById(id)!;
 
-// --- Session persistence ---
+// --- Session persistence (IndexedDB for video, sessionStorage for edits) ---
 interface SavedSession {
   fileName: string;
   fileSize: number;
   keyframes: Keyframe[];
   skipRanges: { start: number; end: number }[];
   numSamples: number;
+}
+
+const DB_NAME = "vr-storage";
+const DB_STORE = "videos";
+
+function openDB(): Promise<IDBDatabase> {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(DB_NAME, 1);
+    req.onupgradeneeded = () => req.result.createObjectStore(DB_STORE);
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+async function saveVideoToDB(file: File): Promise<void> {
+  const db = await openDB();
+  const tx = db.transaction(DB_STORE, "readwrite");
+  tx.objectStore(DB_STORE).put(file, "current-video");
+  await new Promise<void>((resolve, reject) => {
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+  db.close();
+}
+
+async function loadVideoFromDB(): Promise<File | null> {
+  try {
+    const db = await openDB();
+    const tx = db.transaction(DB_STORE, "readonly");
+    const req = tx.objectStore(DB_STORE).get("current-video");
+    const result = await new Promise<File | null>((resolve) => {
+      req.onsuccess = () => resolve(req.result ?? null);
+      req.onerror = () => resolve(null);
+    });
+    db.close();
+    return result;
+  } catch { return null; }
+}
+
+async function clearVideoDB(): Promise<void> {
+  try {
+    const db = await openDB();
+    const tx = db.transaction(DB_STORE, "readwrite");
+    tx.objectStore(DB_STORE).delete("current-video");
+    await new Promise<void>((resolve) => { tx.oncomplete = () => resolve(); });
+    db.close();
+  } catch { /* ignore */ }
 }
 
 function saveSession(file: File) {
@@ -46,6 +93,7 @@ function saveSession(file: File) {
     numSamples: frames.length,
   };
   sessionStorage.setItem("vr-session", JSON.stringify(session));
+  saveVideoToDB(file);
 }
 
 function loadSession(): SavedSession | null {
@@ -56,25 +104,15 @@ function loadSession(): SavedSession | null {
 
 function clearSession() {
   sessionStorage.removeItem("vr-session");
+  clearVideoDB();
 }
 
 // --- Upload ---
 let currentFile: File | null = null;
 let restoreSession = false;
 
-$("fileInput").addEventListener("change", async (e) => {
-  const file = (e.target as HTMLInputElement).files?.[0];
-  if (!file) return;
-
-  // Auto-restore session if same file re-uploaded (no confusing dialog)
-  const saved = loadSession();
-  if (saved && saved.fileName === file.name && saved.fileSize === file.size) {
-    restoreSession = true;
-  } else {
-    clearSession();
-    restoreSession = false;
-  }
-
+async function loadVideo(file: File, shouldRestore: boolean): Promise<void> {
+  restoreSession = shouldRestore;
   currentFile = file;
   videoEl = document.createElement("video");
   videoEl.muted = true;
@@ -88,6 +126,50 @@ $("fileInput").addEventListener("change", async (e) => {
   $("fileStatus").textContent = `${videoEl.videoWidth}x${videoEl.videoHeight} · ${videoEl.duration.toFixed(1)}s · ${(file.size / 1024 / 1024).toFixed(1)}MB`;
   $("fileStatus").className = "status success";
   $("analyzeCard").classList.remove("hidden");
+  $("clearBtn").classList.remove("hidden");
+}
+
+// Auto-restore video from IndexedDB on page load
+(async () => {
+  const saved = loadSession();
+  const storedFile = await loadVideoFromDB();
+  if (saved && storedFile && saved.fileName === storedFile.name) {
+    await loadVideo(storedFile, true);
+  }
+})();
+
+$("fileInput").addEventListener("change", async (e) => {
+  const file = (e.target as HTMLInputElement).files?.[0];
+  if (!file) return;
+
+  // Auto-restore session if same file re-uploaded
+  const saved = loadSession();
+  const shouldRestore = !!(saved && saved.fileName === file.name && saved.fileSize === file.size);
+  if (!shouldRestore) clearSession();
+
+  await loadVideo(file, shouldRestore);
+});
+
+// Clear button — reset everything
+$("clearBtn").addEventListener("click", () => {
+  clearSession();
+  currentFile = null;
+  videoEl = null;
+  frames = [];
+  keyframes = [];
+  skipRanges = [];
+  currentIdx = 0;
+  markStartTime = null;
+
+  // Hide all cards except upload
+  $("analyzeCard").classList.add("hidden");
+  $("editCard").classList.add("hidden");
+  $("exportCard").classList.add("hidden");
+  $("resultCard").classList.add("hidden");
+  $("clearBtn").classList.add("hidden");
+  $("fileStatus").textContent = "";
+  $("fileStatus").className = "status";
+  ($("fileInput") as HTMLInputElement).value = "";
 });
 
 // --- Analyze (motion detection) ---
