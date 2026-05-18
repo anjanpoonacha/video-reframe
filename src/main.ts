@@ -66,15 +66,11 @@ $("fileInput").addEventListener("change", async (e) => {
   const file = (e.target as HTMLInputElement).files?.[0];
   if (!file) return;
 
-  // Check if there's a saved session for the same file
+  // Auto-restore session if same file re-uploaded (no confusing dialog)
   const saved = loadSession();
   if (saved && saved.fileName === file.name && saved.fileSize === file.size) {
-    restoreSession = confirm(
-      "You have unsaved edits for this video. Restore your previous keyframes and cuts?"
-    );
-    if (!restoreSession) clearSession();
-  } else if (saved) {
-    // Different file — clear old session
+    restoreSession = true;
+  } else {
     clearSession();
     restoreSession = false;
   }
