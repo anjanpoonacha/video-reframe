@@ -28,7 +28,7 @@ let dragging = false;
 
 const $ = (id: string) => document.getElementById(id)!;
 
-// --- Session persistence (IndexedDB for video, sessionStorage for edits) ---
+// --- Session persistence (IndexedDB for video, localStorage for edits) ---
 interface SavedSession {
   fileName: string;
   fileSize: number;
@@ -92,18 +92,18 @@ function saveSession(file: File) {
     skipRanges,
     numSamples: frames.length,
   };
-  sessionStorage.setItem("vr-session", JSON.stringify(session));
+  localStorage.setItem("vr-session", JSON.stringify(session));
   saveVideoToDB(file);
 }
 
 function loadSession(): SavedSession | null {
-  const raw = sessionStorage.getItem("vr-session");
+  const raw = localStorage.getItem("vr-session");
   if (!raw) return null;
   try { return JSON.parse(raw); } catch { return null; }
 }
 
 function clearSession() {
-  sessionStorage.removeItem("vr-session");
+  localStorage.removeItem("vr-session");
   clearVideoDB();
 }
 
@@ -135,6 +135,11 @@ async function loadVideo(file: File, shouldRestore: boolean): Promise<void> {
   const storedFile = await loadVideoFromDB();
   if (saved && storedFile && saved.fileName === storedFile.name) {
     await loadVideo(storedFile, true);
+
+    // If we have saved edits (keyframes/skipRanges), auto-run analyze to restore state
+    if (saved.keyframes.length > 0) {
+      ($("analyzeBtn") as HTMLButtonElement).click();
+    }
   }
 })();
 
