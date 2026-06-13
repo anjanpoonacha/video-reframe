@@ -36,8 +36,6 @@ export function getPerformancePreset(tier: DeviceTier): PerformancePreset {
       yieldMs: 16,
     };
   }
-  // High tier also defaults to 720p — social platforms deliver 720p to most viewers,
-  // and 720p encodes ~2x faster than 1080p with negligible quality difference on phones.
   return {
     maxEncodeQueue: 5,
     yieldEvery: 5,
