@@ -45,6 +45,7 @@ jobs:
       - run: bun run build
         working-directory: v2
       - run: cp v2/manifest.json v2/dist/
+      - run: cp v2/benchmark.html v2/dist/ 2>/dev/null || true
 
       # Combine into single site
       - name: Merge builds

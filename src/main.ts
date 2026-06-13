@@ -1,6 +1,8 @@
 import { exportVideo } from "./export";
 import { getActiveTemplate, type EffectOptions } from "./templates";
 import { initBrandKitPanel } from "./brand-kit";
+import { analyzeVideoRVFC, hasRVFC } from "./analyze-fast";
+import { analyzeVideoWebCodecs, hasWebCodecs } from "./analyze-webcodecs";
 import "./styles.css";
 
 // --- Types ---
@@ -27,6 +29,15 @@ let markStartTime: number | null = null;
 let dragging = false;
 
 const $ = (id: string) => document.getElementById(id)!;
+
+// --- Safari detection — show unsupported banner ---
+if (/^((?!chrome|android).)*safari/i.test(navigator.userAgent)) {
+  const banner = document.createElement("div");
+  banner.style.cssText =
+    "position:fixed;top:0;left:0;right:0;padding:12px 16px;background:#b91c1c;color:#fff;font:600 14px/1.4 system-ui;text-align:center;z-index:9999";
+  banner.textContent = "This app requires Chrome or Edge. Safari is not supported.";
+  document.body.prepend(banner);
+}
 
 // --- Session persistence (IndexedDB for video, localStorage for edits) ---
 interface SavedSession {
@@ -177,23 +188,47 @@ $("clearBtn").addEventListener("click", () => {
   ($("fileInput") as HTMLInputElement).value = "";
 });
 
-// --- Analyze (motion detection) ---
+// --- Analyze (motion detection + filmstrip) ---
 $("analyzeBtn").addEventListener("click", async () => {
   if (!videoEl) return;
   ($("analyzeBtn") as HTMLButtonElement).disabled = true;
-  $("analyzeStatus").textContent = "Detecting motion...";
+  $("analyzeStatus").textContent = "Analyzing...";
 
   const duration = videoEl.duration;
   const numSamples = Math.min(200, Math.round(duration * 3));
   const step = duration / numSamples;
 
-  // Detect motion
-  const positions = await detectMotion(videoEl, numSamples);
+  // Use fastest available method (WebCodecs > rVFC > seek-based)
+  let positions: { time: number; x: number }[];
+  let frameBitmaps: ImageBitmap[];
+  const progressCb = (pct: number) => {
+    ($("analyzeProgress") as HTMLElement).style.width = pct + "%";
+  };
+
+  if (hasWebCodecs() && currentFile) {
+    $("analyzeStatus").textContent = "Analyzing (WebCodecs)...";
+    const result = await analyzeVideoWebCodecs(
+      currentFile, videoEl.videoWidth, videoEl.videoHeight, numSamples, progressCb,
+    );
+    positions = result.positions;
+    frameBitmaps = result.frameBitmaps;
+  } else if (hasRVFC()) {
+    $("analyzeStatus").textContent = "Analyzing (fast mode)...";
+    const result = await analyzeVideoRVFC(videoEl, numSamples, progressCb);
+    positions = result.positions;
+    frameBitmaps = result.frameBitmaps;
+  } else {
+    // Fallback: single-pass seek-based
+    const result = await analyzeVideoSinglePass(videoEl, numSamples);
+    positions = result.positions;
+    frameBitmaps = result.frameBitmaps;
+  }
+
   const smoothed = smoothPositions(positions);
 
   // Build keyframes from smoothed positions (keep only significant changes)
   keyframes = [];
-  const keyframeThreshold = 0.03; // minimum position change to create a new keyframe
+  const keyframeThreshold = 0.03;
   keyframes.push({ time: 0, x: smoothed[0]?.x ?? 0.5, auto: true });
   for (let i = 1; i < smoothed.length; i++) {
     const lastKf = keyframes[keyframes.length - 1]!;
@@ -218,42 +253,17 @@ $("analyzeBtn").addEventListener("click", async () => {
     restoreSession = false;
   }
 
-  // Extract thumbnails and build frame data
-  $("analyzeStatus").textContent = "Building filmstrip...";
-  const thumbW = 36 * 2;
-  const thumbH = 64 * 2;
-  const canvas = document.createElement("canvas");
-  canvas.width = thumbW;
-  canvas.height = thumbH;
-  const ctx = canvas.getContext("2d")!;
-
+  // Build frame data from single-pass results
   frames = [];
   for (let i = 0; i < numSamples; i++) {
     const frameTime = i * step;
-    videoEl.currentTime = frameTime;
-    await new Promise((r) =>
-      videoEl!.addEventListener("seeked", r, { once: true })
-    );
-
-    // Get interpolated position from keyframes
     const x = getPositionAtTime(frameTime, duration);
-
-    // Draw 9:16 crop region as thumbnail
-    const cropW = videoEl.videoHeight * (9 / 16);
-    const maxX = videoEl.videoWidth - cropW;
-    const srcX = maxX * x;
-    ctx.drawImage(videoEl, srcX, 0, cropW, videoEl.videoHeight, 0, 0, thumbW, thumbH);
-    const bitmap = await createImageBitmap(canvas);
-
     frames.push({
       time: frameTime,
       x,
-      bitmap,
+      bitmap: frameBitmaps[i]!,
       skipped: false,
     });
-
-    ($("analyzeProgress") as HTMLElement).style.width =
-      Math.round(((i + 1) / numSamples) * 100) + "%";
   }
 
   $("analyzeStatus").textContent = `${numSamples} frames analyzed`;
@@ -522,6 +532,7 @@ $("exportBtn").addEventListener("click", async () => {
       overlay: template.render,
       maxDuration: durationVal || undefined,
       signal: exportController.signal,
+      sourceFile: currentFile || undefined,
       onProgress: (pct) => {
         ($("exportProgress") as HTMLElement).style.width = pct + "%";
         $("exportStatus").textContent = `Encoding... ${pct}%`;
@@ -620,18 +631,32 @@ function removeKeyframe(time: number) {
   }
 }
 
-async function detectMotion(
+async function analyzeVideoSinglePass(
   video: HTMLVideoElement,
   n: number
-): Promise<{ time: number; x: number }[]> {
+): Promise<{ positions: { time: number; x: number }[]; frameBitmaps: ImageBitmap[] }> {
   const pos: { time: number; x: number }[] = [];
+  const bitmaps: ImageBitmap[] = [];
   const step = video.duration / n;
+
+  // Motion detection canvas (small)
   const dw = 160;
   const dh = Math.round(160 * (video.videoHeight / video.videoWidth));
-  const c = document.createElement("canvas");
-  c.width = dw;
-  c.height = dh;
-  const ctx = c.getContext("2d", { willReadFrequently: true })!;
+  const motionCanvas = document.createElement("canvas");
+  motionCanvas.width = dw;
+  motionCanvas.height = dh;
+  const motionCtx = motionCanvas.getContext("2d", { willReadFrequently: true })!;
+
+  // Thumbnail canvas (filmstrip)
+  const thumbW = 36 * 2;
+  const thumbH = 64 * 2;
+  const thumbCanvas = document.createElement("canvas");
+  thumbCanvas.width = thumbW;
+  thumbCanvas.height = thumbH;
+  const thumbCtx = thumbCanvas.getContext("2d")!;
+
+  const cropW = video.videoHeight * (9 / 16);
+  const maxX = video.videoWidth - cropW;
   let prev: ImageData | null = null;
 
   for (let i = 0; i < n; i++) {
@@ -639,8 +664,10 @@ async function detectMotion(
     await new Promise((r) =>
       video.addEventListener("seeked", r, { once: true })
     );
-    ctx.drawImage(video, 0, 0, dw, dh);
-    const d = ctx.getImageData(0, 0, dw, dh);
+
+    // --- Motion detection ---
+    motionCtx.drawImage(video, 0, 0, dw, dh);
+    const d = motionCtx.getImageData(0, 0, dw, dh);
 
     if (prev) {
       let sx = 0;
@@ -664,23 +691,26 @@ async function detectMotion(
       const lastGood = pos[pos.length - 1]?.x ?? 0.5;
 
       if (isPan) {
-        // Whole-frame pan: centroid is meaningless, carry forward last good position
         pos.push({ time: i * step, x: lastGood });
       } else {
-        pos.push({
-          time: i * step,
-          x: cnt > 50 ? sx / cnt / dw : lastGood,
-        });
+        pos.push({ time: i * step, x: cnt > 50 ? sx / cnt / dw : lastGood });
       }
     } else {
       pos.push({ time: 0, x: 0.5 });
     }
-
     prev = d;
+
+    // --- Thumbnail capture (use raw position from this frame) ---
+    const rawX = pos[pos.length - 1]!.x;
+    const srcX = maxX * rawX;
+    thumbCtx.drawImage(video, srcX, 0, cropW, video.videoHeight, 0, 0, thumbW, thumbH);
+    bitmaps.push(await createImageBitmap(thumbCanvas));
+
     ($("analyzeProgress") as HTMLElement).style.width =
-      Math.round((i / n) * 100) + "%";
+      Math.round(((i + 1) / n) * 100) + "%";
   }
-  return pos;
+
+  return { positions: pos, frameBitmaps: bitmaps };
 }
 
 function smoothPositions(

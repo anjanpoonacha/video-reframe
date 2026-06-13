@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=1080, height=1920">
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body {
+        margin: 0;
+        width: 1080px;
+        height: 1920px;
+        overflow: hidden;
+        background: #1a1025;
+      }
+      body { font-family: "Inter", sans-serif; }
+
+      :root {
+        --bg: #1a1025;
+        --surface: #2d1f3d;
+        --accent: #f72585;
+        --accent2: #7209b7;
+        --text: #fafafa;
+        --text-dim: #b8a9cc;
+      }
+
+      .scene {
+        position: absolute;
+        inset: 0;
+        width: 1080px;
+        height: 1920px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        padding: 50px 40px 30px;
+      }
+
+      .scene-title {
+        font-size: 76px;
+        font-weight: 800;
+        color: var(--text);
+        text-align: center;
+        margin-bottom: 8px;
+        line-height: 1.1;
+        flex-shrink: 0;
+      }
+
+      .scene-subtitle {
+        font-size: 36px;
+        font-weight: 400;
+        color: var(--text-dim);
+        text-align: center;
+        margin-bottom: 16px;
+        max-width: 940px;
+        flex-shrink: 0;
+      }
+
+      .phone-wrapper {
+        position: relative;
+        width: 960px;
+        height: 1340px;
+        flex-shrink: 0;
+      }
+
+      .phone-frame {
+        width: 100%;
+        height: 100%;
+        border-radius: 32px;
+        border: 4px solid #4a3560;
+        overflow: hidden;
+        box-shadow: 0 16px 50px rgba(114, 9, 183, 0.3);
+        background: var(--surface);
+      }
+
+      .phone-frame img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        object-position: top;
+      }
+
+      .step-badge {
+        position: absolute;
+        top: 16px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: var(--accent);
+        color: white;
+        font-size: 28px;
+        font-weight: 700;
+        padding: 8px 32px;
+        border-radius: 18px;
+        z-index: 10;
+      }
+
+      .instructions {
+        width: 100%;
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+        margin-top: 16px;
+        flex-shrink: 0;
+      }
+
+      .instruction-step {
+        display: flex;
+        align-items: center;
+        gap: 20px;
+        background: rgba(45, 31, 61, 0.8);
+        border-radius: 16px;
+        padding: 16px 28px;
+        border: 2px solid #4a3560;
+      }
+
+      .instruction-num {
+        width: 46px;
+        height: 46px;
+        border-radius: 50%;
+        background: var(--accent);
+        color: white;
+        font-size: 24px;
+        font-weight: 800;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+      }
+
+      .instruction-text {
+        font-size: 32px;
+        color: var(--text);
+        font-weight: 500;
+        line-height: 1.3;
+      }
+
+      /* Decoratives */
+      .glow {
+        position: absolute;
+        border-radius: 50%;
+        filter: blur(120px);
+        opacity: 0.12;
+        pointer-events: none;
+      }
+      .glow-1 { width: 600px; height: 600px; background: var(--accent); top: -200px; right: -200px; }
+      .glow-2 { width: 500px; height: 500px; background: var(--accent2); bottom: -150px; left: -150px; }
+
+      /* Intro */
+      .intro-title { font-size: 96px; font-weight: 900; color: var(--text); text-align: center; line-height: 1.1; }
+      .intro-tagline { font-size: 42px; color: var(--accent); font-weight: 500; text-align: center; margin-top: 30px; }
+      .intro-desc { font-size: 36px; color: var(--text-dim); text-align: center; margin-top: 40px; max-width: 800px; line-height: 1.5; }
+      .intro-scene { justify-content: center; }
+
+      /* Outro URL */
+      .outro-url {
+        font-size: 34px;
+        color: var(--accent);
+        font-weight: 600;
+        text-align: center;
+        margin-top: 16px;
+        padding: 18px 50px;
+        border: 3px solid var(--accent);
+        border-radius: 18px;
+        flex-shrink: 0;
+      }
+    </style>
+  </head>
+  <body>
+    <div data-hf-id="hf-hj9e" id="root" data-composition-id="main" data-start="0" data-duration="42" data-width="1080" data-height="1920">
+      <div data-hf-id="hf-6uji" class="glow glow-1" id="glow1"></div>
+      <div data-hf-id="hf-cmu8" class="glow glow-2" id="glow2"></div>
+
+      <!-- SCENE 1: Intro (0-5s) -->
+      <div data-hf-id="hf-20cz" id="s1" class="scene intro-scene clip" data-start="0" data-duration="5" data-track-index="1">
+        <div data-hf-id="hf-bjtl" class="intro-title" id="s1-title">Video Reframe</div>
+        <div data-hf-id="hf-x1f4" class="intro-tagline" id="s1-tagline">How to use the app</div>
+        <div data-hf-id="hf-jc6c" class="intro-desc" id="s1-desc">Turn any landscape video into a perfect vertical short for Reels, TikTok &amp; Shorts</div>
+      </div>
+
+      <!-- SCENE 2: Select Video (5-11s) -->
+      <div data-hf-id="hf-6yjv" id="s2" class="scene clip" data-start="5" data-duration="6" data-track-index="1">
+        <div data-hf-id="hf-bky3" class="scene-title" id="s2-title">1. Pick a Video</div>
+        <div data-hf-id="hf-rdui" class="scene-subtitle" id="s2-sub">Tap "Select Video" from your camera roll</div>
+        <div data-hf-id="hf-0yk4" class="phone-wrapper" id="s2-phone">
+          <div data-hf-id="hf-dsie" class="step-badge" id="s2-badge">Step 1</div>
+          <div data-hf-id="hf-itu0" class="phone-frame">
+            <img data-hf-id="hf-dekw" src="assets/01-landing.png" alt="App landing screen">
+          </div>
+        </div>
+        <div data-hf-id="hf-u4qj" class="instructions" id="s2-inst">
+          <div data-hf-id="hf-luun" class="instruction-step"><div data-hf-id="hf-20u2" class="instruction-num">1</div><div data-hf-id="hf-3tek" class="instruction-text">Open the app on your phone</div></div>
+          <div data-hf-id="hf-rudr" class="instruction-step"><div data-hf-id="hf-2f53" class="instruction-num">2</div><div data-hf-id="hf-3nmx" class="instruction-text">Tap the dotted box to pick a video</div></div>
+        </div>
+      </div>
+
+      <!-- SCENE 3: Detect Motion (11-17s) -->
+      <div data-hf-id="hf-4gab" id="s3" class="scene clip" data-start="11" data-duration="6" data-track-index="1">
+        <div data-hf-id="hf-cge3" class="scene-title" id="s3-title">2. Detect Motion</div>
+        <div data-hf-id="hf-sjsu" class="scene-subtitle" id="s3-sub">The app finds where the action is</div>
+        <div data-hf-id="hf-vlq5" class="phone-wrapper" id="s3-phone">
+          <div data-hf-id="hf-o7i6" class="step-badge" id="s3-badge">Step 2</div>
+          <div data-hf-id="hf-4rgg" class="phone-frame">
+            <img data-hf-id="hf-ukg0" src="assets/03-detecting-motion.png" alt="Motion detection">
+          </div>
+        </div>
+        <div data-hf-id="hf-d9q8" class="instructions" id="s3-inst">
+          <div data-hf-id="hf-rg2q" class="instruction-step"><div data-hf-id="hf-59b2" class="instruction-num">1</div><div data-hf-id="hf-lhu7" class="instruction-text">Tap the purple "Detect Motion" button</div></div>
+          <div data-hf-id="hf-r1rp" class="instruction-step"><div data-hf-id="hf-8tdz" class="instruction-num">2</div><div data-hf-id="hf-ykx2" class="instruction-text">Wait for the progress bar to fill (~10s)</div></div>
+          <div data-hf-id="hf-ttww" class="instruction-step"><div data-hf-id="hf-2tg4" class="instruction-num">3</div><div data-hf-id="hf-03fw" class="instruction-text">Don't close the app while it's working!</div></div>
+        </div>
+      </div>
+
+      <!-- SCENE 4: Adjust Frames (17-24s) -->
+      <div data-hf-id="hf-equx" id="s4" class="scene clip" data-start="17" data-duration="7" data-track-index="1">
+        <div data-hf-id="hf-1c20" class="scene-title" id="s4-title">3. Adjust the Crop</div>
+        <div data-hf-id="hf-3w83" class="scene-subtitle" id="s4-sub">Drag left or right to move the crop box</div>
+        <div data-hf-id="hf-rjrq" class="phone-wrapper" id="s4-phone">
+          <div data-hf-id="hf-whfq" class="step-badge" id="s4-badge">Step 3</div>
+          <div data-hf-id="hf-3kjd" class="phone-frame">
+            <img data-hf-id="hf-uqdt" src="assets/09-frame50-before-drag.png" alt="Crop editor">
+          </div>
+        </div>
+        <div data-hf-id="hf-u2td" class="instructions" id="s4-inst">
+          <div data-hf-id="hf-tflv" class="instruction-step"><div data-hf-id="hf-5nm3" class="instruction-num">1</div><div data-hf-id="hf-g1l9" class="instruction-text">Tap any frame in the strip at the bottom</div></div>
+          <div data-hf-id="hf-t1au" class="instruction-step"><div data-hf-id="hf-8f2y" class="instruction-num">2</div><div data-hf-id="hf-1j4n" class="instruction-text">Drag the blue box left/right to reposition</div></div>
+          <div data-hf-id="hf-smzt" class="instruction-step"><div data-hf-id="hf-yiek" class="instruction-num">3</div><div data-hf-id="hf-4rh9" class="instruction-text">The preview shows what it'll look like</div></div>
+        </div>
+      </div>
+
+      <!-- SCENE 5: Skip Ranges (24-30s) -->
+      <div data-hf-id="hf-57ml" id="s5" class="scene clip" data-start="24" data-duration="6" data-track-index="1">
+        <div data-hf-id="hf-ojit" class="scene-title" id="s5-title">4. Cut Bad Parts</div>
+        <div data-hf-id="hf-zpv7" class="scene-subtitle" id="s5-sub">Remove sections you don't want</div>
+        <div data-hf-id="hf-j7zj" class="phone-wrapper" id="s5-phone" style="width: 700px; height: 1340px;">
+          <div data-hf-id="hf-inam" class="step-badge" id="s5-badge">Step 4</div>
+          <div data-hf-id="hf-3yue" class="phone-frame">
+            <img data-hf-id="hf-hpwg" src="assets/17-mark-end-skipped.png" alt="Skip range">
+          </div>
+        </div>
+        <div data-hf-id="hf-llk6" class="instructions" id="s5-inst">
+          <div data-hf-id="hf-p28k" class="instruction-step"><div data-hf-id="hf-61x4" class="instruction-num">1</div><div data-hf-id="hf-rm5o" class="instruction-text">Go to the bad part, tap "Mark Start"</div></div>
+          <div data-hf-id="hf-onxj" class="instruction-step"><div data-hf-id="hf-80rx" class="instruction-num">2</div><div data-hf-id="hf-yupr" class="instruction-text">Scroll forward, tap "Mark End"</div></div>
+          <div data-hf-id="hf-szot" class="instruction-step"><div data-hf-id="hf-xbhh" class="instruction-num">3</div><div data-hf-id="hf-864g" class="instruction-text">That part is now cut from the export!</div></div>
+        </div>
+      </div>
+
+      <!-- SCENE 6: Settings (30-36s) -->
+      <div data-hf-id="hf-yrcz" id="s6" class="scene clip" data-start="30" data-duration="6" data-track-index="1">
+        <div data-hf-id="hf-sg1d" class="scene-title" id="s6-title">5. Customize</div>
+        <div data-hf-id="hf-5olk" class="scene-subtitle" id="s6-sub">Add your brand: colors, name, logo</div>
+        <div data-hf-id="hf-q9b4" class="phone-wrapper" id="s6-phone">
+          <div data-hf-id="hf-1a6y" class="step-badge" id="s6-badge">Settings</div>
+          <div data-hf-id="hf-2rxb" class="phone-frame">
+            <img data-hf-id="hf-b0tk" src="assets/13-settings-brandkit.png" alt="Brand Kit">
+          </div>
+        </div>
+        <div data-hf-id="hf-42tj" class="instructions" id="s6-inst">
+          <div data-hf-id="hf-tdzu" class="instruction-step"><div data-hf-id="hf-39rx" class="instruction-num">1</div><div data-hf-id="hf-pvcm" class="instruction-text">Tap the gear icon (top right)</div></div>
+          <div data-hf-id="hf-tsav" class="instruction-step"><div data-hf-id="hf-asx4" class="instruction-num">2</div><div data-hf-id="hf-b3do" class="instruction-text">Set channel name &amp; pick your colors</div></div>
+          <div data-hf-id="hf-u6lw" class="instruction-step"><div data-hf-id="hf-xpsi" class="instruction-num">3</div><div data-hf-id="hf-f3e8" class="instruction-text">Toggle Intro / Lower Third / Watermark</div></div>
+        </div>
+      </div>
+
+      <!-- SCENE 7: Export & Done (36-42s) -->
+      <div data-hf-id="hf-wixo" id="s7" class="scene clip" data-start="36" data-duration="6" data-track-index="1">
+        <div data-hf-id="hf-2ppg" class="scene-title" id="s7-title">6. Export &amp; Save!</div>
+        <div data-hf-id="hf-yfe9" class="scene-subtitle" id="s7-sub">Tap the green Export button, then Save</div>
+        <div data-hf-id="hf-3g49" class="phone-wrapper" id="s7-phone">
+          <div data-hf-id="hf-tjqt" class="step-badge" id="s7-badge">Done!</div>
+          <div data-hf-id="hf-368c" class="phone-frame">
+            <img data-hf-id="hf-xyc2" src="assets/07-export-done.png" alt="Export complete" style="object-position: center;">
+          </div>
+        </div>
+        <div data-hf-id="hf-wfgy" class="outro-url" id="s7-url">anjanpoonacha.github.io/video-reframe</div>
+      </div>
+    </div>
+
+    <script>
+      window.__timelines = window.__timelines || {};
+      const tl = gsap.timeline({ paused: true });
+
+      // Ambient
+      tl.to("#glow1", { x: 50, y: 30, scale: 1.1, duration: 42, ease: "sine.inOut" }, 0);
+      tl.to("#glow2", { x: -40, y: -20, scale: 1.05, duration: 42, ease: "sine.inOut" }, 0);
+
+      // SCENE 1: Intro
+      tl.from("#s1-title", { y: 80, opacity: 0, duration: 0.8, ease: "power3.out" }, 0.3);
+      tl.from("#s1-tagline", { y: 40, opacity: 0, duration: 0.6, ease: "power2.out" }, 0.7);
+      tl.from("#s1-desc", { y: 30, opacity: 0, duration: 0.5, ease: "expo.out" }, 1.1);
+
+      // SCENE 2
+      tl.from("#s2-title", { x: -60, opacity: 0, duration: 0.6, ease: "power3.out" }, 5.2);
+      tl.from("#s2-sub", { x: -40, opacity: 0, duration: 0.5, ease: "power2.out" }, 5.4);
+      tl.from("#s2-phone", { y: 80, opacity: 0, scale: 0.92, duration: 0.7, ease: "back.out(1.2)" }, 5.6);
+      tl.from("#s2-badge", { scale: 0, opacity: 0, duration: 0.3, ease: "back.out(2)" }, 6.1);
+      tl.from("#s2-inst", { y: 30, opacity: 0, duration: 0.5, ease: "power2.out" }, 6.4);
+
+      // SCENE 3
+      tl.from("#s3-title", { x: 60, opacity: 0, duration: 0.6, ease: "power3.out" }, 11.2);
+      tl.from("#s3-sub", { x: 40, opacity: 0, duration: 0.5, ease: "power2.out" }, 11.4);
+      tl.from("#s3-phone", { y: 80, opacity: 0, scale: 0.92, duration: 0.7, ease: "back.out(1.2)" }, 11.6);
+      tl.from("#s3-badge", { scale: 0, opacity: 0, duration: 0.3, ease: "back.out(2)" }, 12.1);
+      tl.from("#s3-inst", { y: 30, opacity: 0, duration: 0.5, ease: "power2.out" }, 12.5);
+
+      // SCENE 4
+      tl.from("#s4-title", { y: -40, opacity: 0, duration: 0.6, ease: "expo.out" }, 17.2);
+      tl.from("#s4-sub", { y: -20, opacity: 0, duration: 0.5, ease: "power2.out" }, 17.4);
+      tl.from("#s4-phone", { y: 80, opacity: 0, scale: 0.92, duration: 0.7, ease: "back.out(1.2)" }, 17.6);
+      tl.from("#s4-badge", { scale: 0, opacity: 0, duration: 0.3, ease: "back.out(2)" }, 18.1);
+      tl.from("#s4-inst", { y: 30, opacity: 0, duration: 0.5, ease: "power2.out" }, 18.5);
+
+      // SCENE 5
+      tl.from("#s5-title", { x: -60, opacity: 0, duration: 0.6, ease: "power3.out" }, 24.2);
+      tl.from("#s5-sub", { x: -40, opacity: 0, duration: 0.5, ease: "power2.out" }, 24.4);
+      tl.from("#s5-phone", { y: 80, opacity: 0, scale: 0.92, duration: 0.7, ease: "back.out(1.2)" }, 24.6);
+      tl.from("#s5-badge", { scale: 0, opacity: 0, duration: 0.3, ease: "back.out(2)" }, 25.1);
+      tl.from("#s5-inst", { y: 30, opacity: 0, duration: 0.5, ease: "power2.out" }, 25.5);
+
+      // SCENE 6
+      tl.from("#s6-title", { x: 60, opacity: 0, duration: 0.6, ease: "power3.out" }, 30.2);
+      tl.from("#s6-sub", { x: 40, opacity: 0, duration: 0.5, ease: "power2.out" }, 30.4);
+      tl.from("#s6-phone", { y: 80, opacity: 0, scale: 0.92, duration: 0.7, ease: "back.out(1.2)" }, 30.6);
+      tl.from("#s6-badge", { scale: 0, opacity: 0, duration: 0.3, ease: "back.out(2)" }, 31.1);
+      tl.from("#s6-inst", { y: 30, opacity: 0, duration: 0.5, ease: "power2.out" }, 31.5);
+
+      // SCENE 7
+      tl.from("#s7-title", { y: -40, opacity: 0, duration: 0.6, ease: "expo.out" }, 36.2);
+      tl.from("#s7-sub", { y: -20, opacity: 0, duration: 0.5, ease: "power2.out" }, 36.4);
+      tl.from("#s7-phone", { y: 80, opacity: 0, scale: 0.92, duration: 0.7, ease: "back.out(1.2)" }, 36.6);
+      tl.from("#s7-badge", { scale: 0, opacity: 0, duration: 0.3, ease: "back.out(2)" }, 37.1);
+      tl.from("#s7-url", { y: 20, opacity: 0, scale: 0.9, duration: 0.5, ease: "power3.out" }, 37.5);
+
+      window.__timelines["main"] = tl;
+    </script>
+  </body>
+</html>
