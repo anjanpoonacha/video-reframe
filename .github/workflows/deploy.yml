@@ -34,26 +34,33 @@ jobs:
       - run: bun run build
         working-directory: main
       - run: cp main/manifest.json main/dist/
+      - run: cp main/benchmark.html main/dist/ 2>/dev/null || true
 
-      # Build v2
+      # Build v2 (if branch exists)
       - uses: actions/checkout@v4
         with:
           ref: v2
           path: v2
+        continue-on-error: true
+        id: checkout-v2
       - run: bun install
         working-directory: v2
+        if: steps.checkout-v2.outcome == 'success'
       - run: bun run build
         working-directory: v2
-      - run: cp v2/manifest.json v2/dist/
-      - run: cp v2/benchmark.html v2/dist/ 2>/dev/null || true
+        if: steps.checkout-v2.outcome == 'success'
+      - run: cp v2/manifest.json v2/dist/ && cp v2/benchmark.html v2/dist/ 2>/dev/null || true
+        if: steps.checkout-v2.outcome == 'success'
 
       # Combine into single site
       - name: Merge builds
         run: |
           mkdir site
           cp -r main/dist/* site/
-          mkdir -p site/v2
-          cp -r v2/dist/* site/v2/
+          if [ -d v2/dist ]; then
+            mkdir -p site/v2
+            cp -r v2/dist/* site/v2/
+          fi
 
       # Deploy
       - uses: actions/upload-pages-artifact@v3
