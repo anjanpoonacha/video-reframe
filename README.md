@@ -4,13 +4,64 @@ Make vertical videos from horizontal ones. Record a normal wide video, and this 
 
 ## How to Use
 
-1. Open the app and tap **Select Video**
-2. Pick a video from your photos
-3. Tap **Detect Motion** — wait for it to finish (the bar fills up)
-4. You'll see a strip of small frames at the bottom. The app already picked what to show in each frame
-5. If something looks wrong, drag the highlighted box left or right to fix it
-6. Tap **Export** and wait — don't close the app while it's working
-7. Tap **Download** when it's done
+### Quick Start
+
+1. **Select Video** — pick from photos/files
+2. **Detect Motion** — wait for the bar to fill
+3. **Fix frames** — drag the crop box if needed
+4. **Export** — don't close the app while working
+5. **Save Video** — downloads to your phone
+
+### All Features
+
+**Crop Editor** — the big preview with a highlighted box
+
+| Action | What it does |
+|--------|-------------|
+| Drag the box | Move crop left/right for this frame |
+| Tap anywhere on preview | Jump crop to that spot |
+| Arrow keys (left/right) | Step through frames one by one |
+| Play button | Plays through all frames at ~10fps |
+
+When you drag the box, you create a "user keyframe" — the app smoothly moves between your keyframes for all frames in between.
+
+**Skip Ranges** — cut out parts you don't want
+
+| Action | What it does |
+|--------|-------------|
+| Mark Start | Sets the beginning of a cut (at current frame) |
+| Mark End | Finishes the cut — frames between are greyed out |
+| Undo | Removes the last cut you made |
+
+Skipped frames won't appear in the export. The app adds a smooth 4-frame crossfade at each cut so it doesn't look jumpy.
+
+**Remove KF** — appears when you're on a frame with a user keyframe. Tap to delete your manual adjustment and let the auto-tracking take over again.
+
+**Brand Kit** — tap the gear icon (top right)
+
+| Setting | What it does |
+|---------|-------------|
+| Channel Name | Shows in the lower-third overlay and intro |
+| Logo | Upload PNG/SVG — appears as watermark + in intro |
+| Colors (Primary/Accent) | Used in overlays (bars, borders, intro) |
+| Logo Position | Which corner for the watermark (TL/TR/BL/BR) |
+
+Saves automatically. Stays between sessions.
+
+**Export Options** — shown above the Export button
+
+| Option | What it does |
+|--------|-------------|
+| Duration | 10s, 30s, or full video |
+| Intro | Animated logo + channel name (first 2.5s) |
+| Lower Third | Name + handle bar at bottom (2.5–6.3s) |
+| Watermark | Tiny logo in corner (whole video) |
+
+Uncheck any effect you don't want.
+
+**Session Recovery** — if you close the app or refresh, your keyframes and skip ranges are saved. Upload the same video again and it picks up where you left off.
+
+**Clear & Start Over** — appears after you load a video. Erases everything and lets you pick a new video.
 
 ## Recording Tips — Do This for Best Results
 
