@@ -4,64 +4,63 @@ Make vertical videos from horizontal ones. Record a normal wide video, and this 
 
 ## How to Use
 
-### Quick Start
+### Steps
 
-1. **Select Video** — pick from photos/files
-2. **Detect Motion** — wait for the bar to fill
-3. **Fix frames** — drag the crop box if needed
-4. **Export** — don't close the app while working
-5. **Save Video** — downloads to your phone
+1. Tap **Select Video** — pick one from your photos
+2. Tap **Detect Motion** — wait for the bar to fill up
+3. Look at the small frames at the bottom — the app already picked what to show
+4. If something looks wrong, fix it (see below)
+5. Tap **Export 9:16** — wait, don't close the app
+6. Tap **Save Video** — done!
 
-### All Features
+### Fixing the Crop
 
-**Crop Editor** — the big preview with a highlighted box
+After detecting motion, you'll see a big preview with a glowing box on it. The box is what will show in your final video.
 
-| Action | What it does |
-|--------|-------------|
-| Drag the box | Move crop left/right for this frame |
-| Tap anywhere on preview | Jump crop to that spot |
-| Arrow keys (left/right) | Step through frames one by one |
-| Play button | Plays through all frames at ~10fps |
+- **Drag the box** left or right to change what's shown
+- **Tap anywhere** on the preview to move the box there
+- Use **arrow keys** to go to the next/previous frame
+- Tap **Play** to watch it like a slideshow
 
-When you drag the box, you create a "user keyframe" — the app smoothly moves between your keyframes for all frames in between.
+The app remembers where you moved the box and smoothly slides between your choices.
 
-**Skip Ranges** — cut out parts you don't want
+### Cutting Out Parts
 
-| Action | What it does |
-|--------|-------------|
-| Mark Start | Sets the beginning of a cut (at current frame) |
-| Mark End | Finishes the cut — frames between are greyed out |
-| Undo | Removes the last cut you made |
+Don't want something in the middle? Cut it out:
 
-Skipped frames won't appear in the export. The app adds a smooth 4-frame crossfade at each cut so it doesn't look jumpy.
+1. Go to the frame where the bad part **starts** → tap **Mark Start**
+2. Go to the frame where it **ends** → tap **Mark End**
+3. Those frames turn grey — they won't be in the final video
 
-**Remove KF** — appears when you're on a frame with a user keyframe. Tap to delete your manual adjustment and let the auto-tracking take over again.
+Made a mistake? Tap **Undo** to bring back the last cut.
 
-**Brand Kit** — tap the gear icon (top right)
+### Adding Your Name and Logo
 
-| Setting | What it does |
-|---------|-------------|
-| Channel Name | Shows in the lower-third overlay and intro |
-| Logo | Upload PNG/SVG — appears as watermark + in intro |
-| Colors (Primary/Accent) | Used in overlays (bars, borders, intro) |
-| Logo Position | Which corner for the watermark (TL/TR/BL/BR) |
+Tap the **gear icon** (top right) to open settings:
 
-Saves automatically. Stays between sessions.
+- **Channel Name** — your name that shows on the video
+- **Logo** — upload a picture (PNG or SVG) that shows in the corner
+- **Colors** — pick two colors that match your style
+- **Logo Position** — which corner you want it in
 
-**Export Options** — shown above the Export button
+This saves automatically. You only set it up once.
 
-| Option | What it does |
-|--------|-------------|
-| Duration | 10s, 30s, or full video |
-| Intro | Animated logo + channel name (first 2.5s) |
-| Lower Third | Name + handle bar at bottom (2.5–6.3s) |
-| Watermark | Tiny logo in corner (whole video) |
+### Choosing What Shows on Your Video
 
-Uncheck any effect you don't want.
+Before exporting, you can turn effects on/off with checkboxes:
 
-**Session Recovery** — if you close the app or refresh, your keyframes and skip ranges are saved. Upload the same video again and it picks up where you left off.
+- **Intro** — animated logo + your name at the start (first 2.5 seconds)
+- **Lower Third** — your name slides in at the bottom
+- **Watermark** — tiny logo in the corner for the whole video
 
-**Clear & Start Over** — appears after you load a video. Erases everything and lets you pick a new video.
+Uncheck anything you don't want.
+
+### Other Things
+
+- **Duration** — export the full video, or just the first 10 or 30 seconds
+- **Remove KF** button — shows up if you moved the box manually. Tap it to undo your move and let the app decide again
+- **Clear & Start Over** — pick a different video
+- If you close the app and come back, it remembers your work (just pick the same video again)
 
 ## Recording Tips — Do This for Best Results
 
