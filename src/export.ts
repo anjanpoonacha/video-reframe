@@ -182,6 +182,9 @@ export async function exportVideo(config: ExportConfig): Promise<Blob> {
     checkAbort();
     const t = i / fps;
 
+    // Stop if we've passed the actual video duration
+    if (t >= videoEl.duration) break;
+
     // Skip if in a skip range
     if (skipRanges.some((r) => t >= r.start && t < r.end)) continue;
 
@@ -191,9 +194,14 @@ export async function exportVideo(config: ExportConfig): Promise<Blob> {
     const srcX = Math.max(0, Math.min(maxX, maxX * cropX));
 
     videoEl.currentTime = t;
-    await new Promise((r) =>
-      videoEl.addEventListener("seeked", r, { once: true })
-    );
+    await new Promise<void>((resolve) => {
+      const onSeeked = () => { clearTimeout(timer); resolve(); };
+      const timer = setTimeout(() => {
+        videoEl.removeEventListener("seeked", onSeeked);
+        resolve(); // proceed with whatever frame is available
+      }, 2000);
+      videoEl.addEventListener("seeked", onSeeked, { once: true });
+    });
     checkAbort();
 
     // Cross-fade at cut boundaries (D-19, D-20, D-21)
