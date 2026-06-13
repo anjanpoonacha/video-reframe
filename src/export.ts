@@ -123,7 +123,7 @@ export async function exportVideo(config: ExportConfig): Promise<Blob> {
     bitrateMode: "variable",
     framerate: fps,
     latencyMode: "quality",
-    hardwareAcceleration: "no-preference",
+    hardwareAcceleration: "prefer-hardware",
   });
 
   const canvas = document.createElement("canvas");
@@ -197,7 +197,6 @@ export async function exportVideo(config: ExportConfig): Promise<Blob> {
     // Export takes exactly video_duration seconds but avoids 50-150ms per-frame seek penalty
     videoEl.currentTime = 0;
     videoEl.muted = true;
-    videoEl.setAttribute("playsinline", "");
 
     const frameReady = () => new Promise<void>((resolve) => {
       function onFrame(_now: DOMHighResTimeStamp, metadata: VideoFrameCallbackMetadata) {

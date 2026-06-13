@@ -30,6 +30,15 @@ let dragging = false;
 
 const $ = (id: string) => document.getElementById(id)!;
 
+// --- Safari detection — show unsupported banner ---
+if (/^((?!chrome|android).)*safari/i.test(navigator.userAgent)) {
+  const banner = document.createElement("div");
+  banner.style.cssText =
+    "position:fixed;top:0;left:0;right:0;padding:12px 16px;background:#b91c1c;color:#fff;font:600 14px/1.4 system-ui;text-align:center;z-index:9999";
+  banner.textContent = "This app requires Chrome or Edge. Safari is not supported.";
+  document.body.prepend(banner);
+}
+
 // --- Session persistence (IndexedDB for video, localStorage for edits) ---
 interface SavedSession {
   fileName: string;
@@ -504,12 +513,6 @@ $("exportBtn").addEventListener("click", async () => {
   $("exportStatus").textContent = "Encoding...";
   ($("exportProgress") as HTMLElement).style.width = "0%";
   const totalStart = performance.now();
-
-  // Unlock video playback for iOS Safari (must be within user gesture microtask)
-  videoEl.muted = true;
-  await videoEl.play().catch(() => {});
-  videoEl.pause();
-  videoEl.currentTime = 0;
 
   // Read export options from UI
   const durationVal = parseInt(($("exportDuration") as HTMLSelectElement).value, 10);
