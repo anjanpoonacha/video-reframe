@@ -215,6 +215,81 @@ A mobile-first web app that converts 16:9 landscape videos into 9:16 portrait sh
 No project skills found. Add skills to any of: `.claude/skills/`, `.agents/skills/`, `.cursor/skills/`, `.github/skills/`, or `.codex/skills/` with a `SKILL.md` index file.
 <!-- GSD:skills-end -->
 
+## Commands
+
+```bash
+bun install          # install dependencies
+bun run dev          # dev server on :3000 with HMR
+bun run build        # bundle to dist/
+```
+
+## Tutorial Video (HyperFrames composition)
+
+Located in `tutorial-video/`. Uses HyperFrames to produce a tutorial video for the app.
+
+```bash
+cd tutorial-video
+npm run dev          # preview server (keep alive in background)
+npm run check        # lint + validate + inspect
+npm run render       # render to MP4
+```
+
+### Vision Describe Script
+
+`tutorial-video/describe-frames.ts` — standalone script to describe snapshot frames using Claude or Gemini vision.
+
+```bash
+cd tutorial-video
+
+# Default: describes contact-sheet.jpg via Gemini
+bun describe-frames.ts
+
+# Specific files
+bun describe-frames.ts snapshots/frame-03*.png
+
+# Claude via proxy
+bun describe-frames.ts --provider claude \
+  --base-url http://localhost:3030 \
+  --api-key f696436b-77fa-4599-ba51-0e602e36c9b7 \
+  --model claude-opus-4-6
+
+# Custom prompt + system prompt
+bun describe-frames.ts --prompt "Is the logo visible?" \
+  --system "You are a QA reviewer checking for rendering bugs"
+
+# All PNGs instead of contact sheet
+bun describe-frames.ts --glob "*.png"
+```
+
+Options: `--provider` (claude|gemini), `--model`, `--prompt`, `--system`, `--dir`, `--output`, `--base-url`, `--api-key`, `--max-tokens`, `--glob`.
+
+### Vision API Config
+
+`tutorial-video/.env` (gitignored):
+
+```
+GEMINI_API_KEY=<your-key>
+GOOGLE_GEMINI_BASE_URL=http://localhost:6655/gemini
+HYPERFRAMES_GEMINI_MODEL=gemini-3.1-flash-lite
+```
+
+- `GOOGLE_GEMINI_BASE_URL` — base URL for Gemini SDK (NOT `GEMINI_BASE_URL`)
+- `HYPERFRAMES_GEMINI_MODEL` — model for `hyperframes snapshot --describe`
+- For Claude: use `ANTHROPIC_API_KEY` + `ANTHROPIC_BASE_URL` or pass via `--api-key`/`--base-url`
+
+Available models on localhost:6655/gemini: `gemini-2.5-flash`, `gemini-2.5-flash-lite`, `gemini-2.5-pro`, `gemini-3.1-flash-lite`.
+
+## TocaBoca Recording Guide
+
+See README.md for the full recording guide. Key constraints from the algorithm:
+
+- Record landscape 1080p+, stay in ONE room
+- Move character one direction at a time (left-to-right preferred)
+- No menus/sparkle effects (triggers pan detection at >60% pixel change)
+- Keep clips 30–60s (200 sample cap = 67s max tracking)
+- After scene transitions: wiggle character 1–2s to re-anchor
+- Keep gameplay in center 60% vertically (overlays cover top 10% + bottom 20%)
+
 <!-- GSD:workflow-start source:GSD defaults -->
 ## GSD Workflow Enforcement
 
