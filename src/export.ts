@@ -385,8 +385,82 @@ export async function exportVideo(config: ExportConfig): Promise<Blob> {
     }
   }
 
-  // --- Fast path: VideoDecoder sequential decode (no seeks) ---
-  if (typeof VideoDecoder !== "undefined" && config.sourceFile) {
+  // --- Fast path: rVFC play-pause-encode loop ---
+  // Plays video forward, captures each frame via requestVideoFrameCallback,
+  // pauses to encode, then resumes. This uses the browser's optimized sequential
+  // decode pipeline (no per-frame seek reset) while maintaining frame control.
+  const hasRVFC = "requestVideoFrameCallback" in videoEl;
+  if (hasRVFC) {
+    videoEl.currentTime = 0;
+    videoEl.muted = true;
+
+    // Wait for first frame to be ready
+    await new Promise<void>((resolve) => {
+      videoEl.addEventListener("seeked", () => resolve(), { once: true });
+    });
+
+    let lastEncodedTime = -1;
+
+    while (lastEncodedTime < duration - 1 / fps) {
+      checkAbort();
+      if (encoderError) throw encoderError;
+
+      // Play and wait for next frame via rVFC
+      const mediaTime = await new Promise<number>((resolve) => {
+        videoEl.requestVideoFrameCallback((_now, metadata) => {
+          videoEl.pause();
+          resolve(metadata.mediaTime);
+        });
+        videoEl.play();
+      });
+
+      // Map to our frame index
+      const i = Math.round(mediaTime * fps);
+      const t = mediaTime;
+
+      if (t >= duration) break;
+
+      // Skip if in a skip range
+      if (skipRanges.some((r) => t >= r.start && t < r.end)) continue;
+
+      // Skip if we already encoded a frame at this time (avoids duplicates)
+      if (Math.abs(t - lastEncodedTime) < 0.5 / fps) continue;
+
+      const cropX = getPositionAtTime(t, keyframes);
+      const maxX = srcW - cropSrcW;
+      const srcX = Math.max(0, Math.min(maxX, maxX * cropX));
+
+      // Cross-fade at cut boundaries
+      if (cutEntryFrames.has(i) && hasPrevFrame) {
+        await encodeCrossFade(videoEl, srcX, t);
+      }
+
+      const frameStart = performance.now();
+
+      ctx.drawImage(videoEl, srcX, 0, cropSrcW, srcH, 0, 0, encW, encH);
+      overlay(ctx, t, encW, encH);
+      await encodeFrame(t);
+
+      if (cutEntryFrames.size > 0) {
+        prevCtx.drawImage(canvas, 0, 0);
+        hasPrevFrame = true;
+      }
+
+      encodedFrames++;
+      consecutiveFrames++;
+      lastEncodedTime = t;
+      checkThermalPressure(performance.now() - frameStart);
+      onProgress(Math.round((t / duration) * 100));
+
+      if (consecutiveFrames >= effectiveYieldEvery || consecutiveFrames >= preset.maxConsecutive) {
+        await new Promise((r) => setTimeout(r, preset.yieldMs));
+        consecutiveFrames = 0;
+        checkAbort();
+      }
+    }
+
+    videoEl.muted = false;
+  } else if (typeof VideoDecoder !== "undefined" && config.sourceFile) {
     // Build a map of target frame timestamps for the export
     const targetFrames: { idx: number; t: number }[] = [];
     for (let i = 0; i < totalFrames; i++) {
