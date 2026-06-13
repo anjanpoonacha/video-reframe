@@ -56,8 +56,8 @@ function getDescription(mp4boxFile: any, trackId: number): Uint8Array | undefine
 
 /**
  * Sequential frame decode using VideoDecoder + mp4box.js demuxer.
- * Yields decoded VideoFrames in presentation order.
- * Caller MUST close each yielded VideoFrame.
+ * Uses a bounded queue with backpressure — never holds more than MAX_QUEUE frames in memory.
+ * Yields decoded VideoFrames one at a time. Caller MUST close each yielded frame.
  */
 async function* decodeFramesSequentially(
   file: File,
@@ -66,34 +66,40 @@ async function* decodeFramesSequentially(
   const arrayBuffer = await file.arrayBuffer();
   const mp4boxFile = createFile();
 
-  // Queue for decoded frames with backpressure
+  // Bounded frame queue — max 3 frames buffered to prevent mobile OOM
+  const MAX_QUEUE = 3;
   const frameQueue: VideoFrame[] = [];
-  let resolveFrame: (() => void) | null = null;
+  let resolveWaitForFrame: (() => void) | null = null;
+  let resolveWaitForDrain: (() => void) | null = null;
   let decodeError: Error | null = null;
   let decodeDone = false;
 
   const decoder = new VideoDecoder({
     output: (frame) => {
       frameQueue.push(frame);
-      if (resolveFrame) {
-        resolveFrame();
-        resolveFrame = null;
+      // Wake up the consumer waiting for a frame
+      if (resolveWaitForFrame) {
+        resolveWaitForFrame();
+        resolveWaitForFrame = null;
       }
     },
     error: (e) => {
       decodeError = e;
-      if (resolveFrame) {
-        resolveFrame();
-        resolveFrame = null;
+      if (resolveWaitForFrame) {
+        resolveWaitForFrame();
+        resolveWaitForFrame = null;
       }
     },
   });
 
+  let configured = false;
+  let samplesBuffer: any[] = [];
+
   mp4boxFile.onError = (e: string) => {
     decodeError = new Error(`MP4Box error: ${e}`);
-    if (resolveFrame) {
-      resolveFrame();
-      resolveFrame = null;
+    if (resolveWaitForFrame) {
+      resolveWaitForFrame();
+      resolveWaitForFrame = null;
     }
   };
 
@@ -101,10 +107,7 @@ async function* decodeFramesSequentially(
     const videoTrack = info.tracks.find((t: any) => t.type === "video");
     if (!videoTrack) {
       decodeError = new Error("No video track found");
-      if (resolveFrame) {
-        resolveFrame();
-        resolveFrame = null;
-      }
+      if (resolveWaitForFrame) { resolveWaitForFrame(); resolveWaitForFrame = null; }
       return;
     }
 
@@ -115,14 +118,40 @@ async function* decodeFramesSequentially(
       description: getDescription(mp4boxFile, videoTrack.id),
       hardwareAcceleration: "prefer-hardware",
     });
+    configured = true;
 
     mp4boxFile.setExtractionOptions(videoTrack.id);
     mp4boxFile.start();
   };
 
   mp4boxFile.onSamples = (_id: number, _user: any, samples: any[]) => {
-    for (const sample of samples) {
-      if (signal?.aborted) break;
+    samplesBuffer.push(...samples);
+    // Wake up the feeder
+    if (resolveWaitForDrain) {
+      resolveWaitForDrain();
+      resolveWaitForDrain = null;
+    }
+  };
+
+  // Feed file to mp4box (triggers onReady + onSamples)
+  (arrayBuffer as any).fileStart = 0;
+  mp4boxFile.appendBuffer(arrayBuffer);
+  mp4boxFile.flush();
+
+  // Feed samples to decoder incrementally with backpressure
+  let sampleIdx = 0;
+  async function feedMore() {
+    while (sampleIdx < samplesBuffer.length) {
+      if (signal?.aborted) return;
+      // Backpressure: wait if frame queue is full
+      while (frameQueue.length >= MAX_QUEUE) {
+        await new Promise<void>((r) => { resolveWaitForDrain = r; });
+        // Consumer drained a frame, released the slot — check again
+      }
+      if (decoder.decodeQueueSize > 10) {
+        await new Promise((r) => decoder.addEventListener("dequeue", r, { once: true }));
+      }
+      const sample = samplesBuffer[sampleIdx]!;
       const chunk = new EncodedVideoChunk({
         type: sample.is_sync ? "key" : "delta",
         timestamp: (sample.cts * 1_000_000) / sample.timescale,
@@ -130,37 +159,42 @@ async function* decodeFramesSequentially(
         data: sample.data,
       });
       decoder.decode(chunk);
+      sampleIdx++;
     }
-  };
+  }
 
-  // Feed entire file to mp4box
-  (arrayBuffer as any).fileStart = 0;
-  mp4boxFile.appendBuffer(arrayBuffer);
-  mp4boxFile.flush();
+  // Start feeding in background
+  const feedPromise = feedMore().then(async () => {
+    await decoder.flush();
+    decodeDone = true;
+    // Wake consumer if waiting
+    if (resolveWaitForFrame) { resolveWaitForFrame(); resolveWaitForFrame = null; }
+  }).catch((e) => {
+    decodeError = e instanceof Error ? e : new Error(String(e));
+    if (resolveWaitForFrame) { resolveWaitForFrame(); resolveWaitForFrame = null; }
+  });
 
-  // Flush decoder to signal end of input
-  await decoder.flush();
-  decodeDone = true;
-
-  // Yield all frames from queue
-  while (frameQueue.length > 0 || !decodeDone) {
+  // Yield frames as they become available
+  while (true) {
     if (signal?.aborted) {
-      // Close remaining frames
       for (const f of frameQueue) f.close();
-      frameQueue.length = 0;
       throw new DOMException("Export cancelled", "AbortError");
     }
-
     if (decodeError) {
       for (const f of frameQueue) f.close();
-      frameQueue.length = 0;
       throw decodeError;
     }
 
     if (frameQueue.length > 0) {
-      yield frameQueue.shift()!;
-    } else {
+      const frame = frameQueue.shift()!;
+      // Signal feeder that a slot opened up
+      if (resolveWaitForDrain) { resolveWaitForDrain(); resolveWaitForDrain = null; }
+      yield frame;
+    } else if (decodeDone) {
       break;
+    } else {
+      // Wait for a frame to arrive
+      await new Promise<void>((r) => { resolveWaitForFrame = r; });
     }
   }
 }
