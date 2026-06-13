@@ -385,12 +385,84 @@ export async function exportVideo(config: ExportConfig): Promise<Blob> {
     }
   }
 
-  // --- Fast path: rVFC play-pause-encode loop ---
-  // Plays video forward, captures each frame via requestVideoFrameCallback,
-  // pauses to encode, then resumes. This uses the browser's optimized sequential
-  // decode pipeline (no per-frame seek reset) while maintaining frame control.
+  // --- Path selection ---
+  // Desktop: VideoDecoder (10s for 60s video — unified memory makes drawImage(VideoFrame) free)
+  // Mobile: rVFC play-pause (60s for 60s — avoids 80-150ms/frame seek overhead)
+  // Fallback: seek-based (3-5 min — old browsers only)
+  const isMobile = /Android|iPhone|iPad/i.test(navigator.userAgent);
   const hasRVFC = "requestVideoFrameCallback" in videoEl;
-  if (hasRVFC) {
+  const hasVideoDecoder = typeof VideoDecoder !== "undefined";
+
+  if (!isMobile && hasVideoDecoder && config.sourceFile) {
+    // --- DESKTOP: VideoDecoder sequential decode (fastest) ---
+    const targetFrames: { idx: number; t: number }[] = [];
+    for (let i = 0; i < totalFrames; i++) {
+      const t = i / fps;
+      if (t >= duration) break;
+      if (skipRanges.some((r) => t >= r.start && t < r.end)) continue;
+      targetFrames.push({ idx: i, t });
+    }
+
+    let targetIdx = 0;
+
+    for await (const decodedFrame of decodeFramesSequentially(config.sourceFile, signal)) {
+      if (targetIdx >= targetFrames.length) {
+        decodedFrame.close();
+        break;
+      }
+
+      checkAbort();
+      if (encoderError) {
+        decodedFrame.close();
+        throw encoderError;
+      }
+
+      const frameTimeSec = decodedFrame.timestamp / 1_000_000;
+      const target = targetFrames[targetIdx]!;
+
+      if (frameTimeSec < target.t - 0.5 / fps) {
+        decodedFrame.close();
+        continue;
+      }
+
+      try {
+        const cropX = getPositionAtTime(target.t, keyframes);
+        const maxX = srcW - cropSrcW;
+        const srcX = Math.max(0, Math.min(maxX, maxX * cropX));
+
+        if (cutEntryFrames.has(target.idx) && hasPrevFrame) {
+          await encodeCrossFade(decodedFrame, srcX, target.t);
+        }
+
+        const frameStart = performance.now();
+        ctx.drawImage(decodedFrame, srcX, 0, cropSrcW, srcH, 0, 0, encW, encH);
+        overlay(ctx, target.t, encW, encH);
+        await encodeFrame(target.t);
+
+        if (cutEntryFrames.size > 0) {
+          prevCtx.drawImage(canvas, 0, 0);
+          hasPrevFrame = true;
+        }
+
+        encodedFrames++;
+        consecutiveFrames++;
+        checkThermalPressure(performance.now() - frameStart);
+        onProgress(Math.round((targetIdx / targetFrames.length) * 100));
+
+        if (consecutiveFrames >= effectiveYieldEvery || consecutiveFrames >= preset.maxConsecutive) {
+          await new Promise((r) => setTimeout(r, preset.yieldMs));
+          consecutiveFrames = 0;
+          checkAbort();
+        }
+
+        targetIdx++;
+      } finally {
+        decodedFrame.close();
+      }
+    }
+  } else if (hasRVFC) {
+    // --- MOBILE: rVFC play-pause-encode loop ---
+    // Uses browser's optimized sequential decode (no per-frame seek reset)
     videoEl.currentTime = 0;
     videoEl.muted = true;
 
@@ -460,85 +532,8 @@ export async function exportVideo(config: ExportConfig): Promise<Blob> {
     }
 
     videoEl.muted = false;
-  } else if (typeof VideoDecoder !== "undefined" && config.sourceFile) {
-    // Build a map of target frame timestamps for the export
-    const targetFrames: { idx: number; t: number }[] = [];
-    for (let i = 0; i < totalFrames; i++) {
-      const t = i / fps;
-      if (t >= duration) break;
-      if (skipRanges.some((r) => t >= r.start && t < r.end)) continue;
-      targetFrames.push({ idx: i, t });
-    }
-
-    let targetIdx = 0;
-
-    for await (const decodedFrame of decodeFramesSequentially(config.sourceFile, signal)) {
-      if (targetIdx >= targetFrames.length) {
-        decodedFrame.close();
-        break;
-      }
-
-      checkAbort();
-      if (encoderError) {
-        decodedFrame.close();
-        throw encoderError;
-      }
-
-      const frameTimeSec = decodedFrame.timestamp / 1_000_000;
-      const target = targetFrames[targetIdx]!;
-
-      // Skip decoded frames that come before our next target timestamp
-      if (frameTimeSec < target.t - 0.5 / fps) {
-        decodedFrame.close();
-        continue;
-      }
-
-      // Use this decoded frame for the current target
-      try {
-        const cropX = getPositionAtTime(target.t, keyframes);
-        const maxX = srcW - cropSrcW;
-        const srcX = Math.max(0, Math.min(maxX, maxX * cropX));
-
-        // Cross-fade at cut boundaries
-        if (cutEntryFrames.has(target.idx) && hasPrevFrame) {
-          await encodeCrossFade(decodedFrame, srcX, target.t);
-        }
-
-        const frameStart = performance.now();
-
-        // Draw crop from decoded frame
-        ctx.drawImage(decodedFrame, srcX, 0, cropSrcW, srcH, 0, 0, encW, encH);
-
-        // Overlay injection
-        overlay(ctx, target.t, encW, encH);
-
-        // Encode
-        await encodeFrame(target.t);
-
-        // Store for cross-fade
-        if (cutEntryFrames.size > 0) {
-          prevCtx.drawImage(canvas, 0, 0);
-          hasPrevFrame = true;
-        }
-
-        encodedFrames++;
-        consecutiveFrames++;
-        checkThermalPressure(performance.now() - frameStart);
-        onProgress(Math.round((targetIdx / progressTotal) * 100));
-
-        if (consecutiveFrames >= effectiveYieldEvery || consecutiveFrames >= preset.maxConsecutive) {
-          await new Promise((r) => setTimeout(r, preset.yieldMs));
-          consecutiveFrames = 0;
-          checkAbort();
-        }
-
-        targetIdx++;
-      } finally {
-        decodedFrame.close();
-      }
-    }
   } else {
-    // --- Fallback: seek-based export (browsers without VideoDecoder) ---
+    // --- FALLBACK: seek-based export (old browsers without rVFC or VideoDecoder) ---
     for (let i = 0; i < totalFrames; i++) {
       checkAbort();
       if (encoderError) throw encoderError;
