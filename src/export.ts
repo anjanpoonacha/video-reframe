@@ -389,7 +389,7 @@ export async function exportVideo(config: ExportConfig): Promise<Blob> {
   // Desktop: VideoDecoder (10s for 60s video — unified memory makes drawImage(VideoFrame) free)
   // Mobile: rVFC play-pause (60s for 60s — avoids 80-150ms/frame seek overhead)
   // Fallback: seek-based (3-5 min — old browsers only)
-  const isMobile = /Android|iPhone|iPad/i.test(navigator.userAgent);
+  const isMobile = /Android|iPhone|iPad/i.test(navigator.userAgent) || new URL(location.href).searchParams.has("rvfc");
   const hasRVFC = "requestVideoFrameCallback" in videoEl;
   const hasVideoDecoder = typeof VideoDecoder !== "undefined";
 
@@ -601,7 +601,12 @@ export async function exportVideo(config: ExportConfig): Promise<Blob> {
   // If refactored to batch frames, this becomes critical.
 
   checkAbort();
-  await encoder.flush();
+  // Flush with timeout — encoder.flush() can hang on mobile Chrome
+  await Promise.race([
+    encoder.flush(),
+    new Promise<void>((resolve) => setTimeout(resolve, 5000)),
+  ]);
+  encoder.close();
   muxer.finalize();
 
   return new Blob([muxer.target.buffer], { type: "video/mp4" });
