@@ -2,6 +2,7 @@ import { exportVideo } from "./export";
 import { getActiveTemplate, type EffectOptions } from "./templates";
 import { initBrandKitPanel } from "./brand-kit";
 import { analyzeVideoRVFC, hasRVFC } from "./analyze-fast";
+import { analyzeVideoWebCodecs, hasWebCodecs } from "./analyze-webcodecs";
 import "./styles.css";
 
 // --- Types ---
@@ -188,15 +189,23 @@ $("analyzeBtn").addEventListener("click", async () => {
   const numSamples = Math.min(200, Math.round(duration * 3));
   const step = duration / numSamples;
 
-  // Use fastest available method
+  // Use fastest available method (WebCodecs > rVFC > seek-based)
   let positions: { time: number; x: number }[];
   let frameBitmaps: ImageBitmap[];
+  const progressCb = (pct: number) => {
+    ($("analyzeProgress") as HTMLElement).style.width = pct + "%";
+  };
 
-  if (hasRVFC()) {
+  if (hasWebCodecs() && currentFile) {
+    $("analyzeStatus").textContent = "Analyzing (WebCodecs)...";
+    const result = await analyzeVideoWebCodecs(
+      currentFile, videoEl.videoWidth, videoEl.videoHeight, numSamples, progressCb,
+    );
+    positions = result.positions;
+    frameBitmaps = result.frameBitmaps;
+  } else if (hasRVFC()) {
     $("analyzeStatus").textContent = "Analyzing (fast mode)...";
-    const result = await analyzeVideoRVFC(videoEl, numSamples, (pct) => {
-      ($("analyzeProgress") as HTMLElement).style.width = pct + "%";
-    });
+    const result = await analyzeVideoRVFC(videoEl, numSamples, progressCb);
     positions = result.positions;
     frameBitmaps = result.frameBitmaps;
   } else {

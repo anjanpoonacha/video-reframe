@@ -7,6 +7,7 @@
       "dependencies": {
         "gsap": "^3.15.0",
         "mp4-muxer": "^5.2.2",
+        "mp4box": "^2.3.0",
       },
       "devDependencies": {
         "@types/bun": "latest",
@@ -31,6 +32,8 @@
     "gsap": ["gsap@3.15.0", "", {}, "sha512-dMW4CWBTUK1AEEDeZc1g4xpPGIrSf9fJF960qbTZmN/QwZIWY5wgliS6JWl9/25fpTGJrMRtSjGtOmPnfjZB+A=="],
 
     "mp4-muxer": ["mp4-muxer@5.2.2", "", { "dependencies": { "@types/dom-webcodecs": "^0.1.6", "@types/wicg-file-system-access": "^2020.9.5" } }, "sha512-dhozjTywI0h2qFzeShagt8YYw811fh1XlwiDCE2f6Aeqf6xG2CyuShoSa5E0AZDO8pPF0JOZ3wOmWBNWIGdSpQ=="],
+
+    "mp4box": ["mp4box@2.3.0", "", {}, "sha512-nnABYbdh4UguEYyV+uRwQBi1tbb8kXka2Fx9yKzmDKAeh8gkvRKYxoK1XDd8GQIjSfN4rvsXrW1CBo4yRQJZDA=="],
 
     "typescript": ["typescript@5.9.3", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-jl1vZzPDinLr9eUt3J/t7V6FgNEw9QjvBPdysz9KfQDD41fQrC2Y4vKQdiaUpFT4bXlb1RHhLpp8wtm6M5TgSw=="],
 

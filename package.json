@@ -16,6 +16,7 @@
   },
   "dependencies": {
     "gsap": "^3.15.0",
-    "mp4-muxer": "^5.2.2"
+    "mp4-muxer": "^5.2.2",
+    "mp4box": "^2.3.0"
   }
 }
