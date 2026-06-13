@@ -1,0 +1,23 @@
+name: Trigger Deploy on v2 push
+
+on:
+  push:
+    branches: [v2]
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  trigger:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.actions.createWorkflowDispatch({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              workflow_id: 'deploy.yml',
+              ref: 'main',
+            });
