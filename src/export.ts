@@ -81,32 +81,10 @@ export async function exportVideo(config: ExportConfig): Promise<Blob> {
   // Adjust progress denominator to account for transition frames
   const progressTotal = totalFrames + cutEntryFrames.size * FADE_FRAMES;
 
-  // Select best available codec: AV1 > HEVC > H.264
-  const codecCandidates: { codec: string; muxCodec: "av1" | "hevc" | "avc"; bitrate: number }[] = [
-    { codec: "av01.0.04M.08", muxCodec: "av1", bitrate: 2_500_000 },
-    { codec: "hev1.1.6.L93.B0", muxCodec: "hevc", bitrate: 2_500_000 },
-    { codec: "avc1.640028", muxCodec: "avc", bitrate: 3_000_000 },
-  ];
-
-  let selectedCodec = codecCandidates[codecCandidates.length - 1]!; // H.264 fallback
-  for (const candidate of codecCandidates) {
-    const support = await VideoEncoder.isConfigSupported({
-      codec: candidate.codec,
-      width: encW,
-      height: encH,
-      bitrate: candidate.bitrate,
-      framerate: fps,
-      latencyMode: "quality",
-    });
-    if (support.supported) {
-      selectedCodec = candidate;
-      break;
-    }
-  }
-
+  // Use H.264 with hardware acceleration — universally supported, fastest on mobile
   const muxer = new Muxer({
     target: new ArrayBufferTarget(),
-    video: { codec: selectedCodec.muxCodec, width: encW, height: encH },
+    video: { codec: "avc", width: encW, height: encH },
     fastStart: "in-memory",
   });
 
@@ -117,12 +95,12 @@ export async function exportVideo(config: ExportConfig): Promise<Blob> {
   });
 
   encoder.configure({
-    codec: selectedCodec.codec,
+    codec: "avc1.640028",
     width: encW,
     height: encH,
-    bitrate: selectedCodec.bitrate,
+    bitrate: 4_000_000,
     framerate: fps,
-    latencyMode: "quality",
+    hardwareAcceleration: "prefer-hardware",
   });
 
   const canvas = document.createElement("canvas");
@@ -235,7 +213,7 @@ export async function exportVideo(config: ExportConfig): Promise<Blob> {
             );
           }
 
-          encoder.encode(frame, { keyFrame: encodedFrames % 150 === 0 });
+          encoder.encode(frame, { keyFrame: encodedFrames % 60 === 0 });
         } finally {
           frame?.close();
         }
@@ -276,7 +254,7 @@ export async function exportVideo(config: ExportConfig): Promise<Blob> {
         checkAbort();
       }
 
-      encoder.encode(frame, { keyFrame: encodedFrames % 150 === 0 });
+      encoder.encode(frame, { keyFrame: encodedFrames % 60 === 0 });
     } finally {
       frame?.close();
     }
