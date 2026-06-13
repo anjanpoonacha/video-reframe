@@ -2,7 +2,7 @@ name: Deploy to GitHub Pages
 
 on:
   push:
-    branches: [main]
+    branches: [main, v2]
 
 permissions:
   contents: read
@@ -20,15 +20,43 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: oven-sh/setup-bun@v2
-      - run: bun install
-      - run: bun run build
-      - run: cp manifest.json dist/
       - uses: actions/configure-pages@v5
+      - uses: oven-sh/setup-bun@v2
+
+      # Build prod (main)
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          path: main
+      - run: bun install
+        working-directory: main
+      - run: bun run build
+        working-directory: main
+      - run: cp main/manifest.json main/dist/
+
+      # Build v2
+      - uses: actions/checkout@v4
+        with:
+          ref: v2
+          path: v2
+      - run: bun install
+        working-directory: v2
+      - run: bun run build
+        working-directory: v2
+      - run: cp v2/manifest.json v2/dist/
+
+      # Combine into single site
+      - name: Merge builds
+        run: |
+          mkdir site
+          cp -r main/dist/* site/
+          mkdir -p site/v2
+          cp -r v2/dist/* site/v2/
+
+      # Deploy
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: dist
+          path: site
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
