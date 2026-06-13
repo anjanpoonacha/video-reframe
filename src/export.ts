@@ -82,7 +82,6 @@ export async function exportVideo(config: ExportConfig): Promise<Blob> {
   const progressTotal = totalFrames + cutEntryFrames.size * FADE_FRAMES;
 
   // Select best available codec: AV1 > HEVC > H.264
-  // AV1/HEVC encode ~same speed on hardware but produce better quality at lower bitrate
   const codecCandidates: { codec: string; muxCodec: "av1" | "hevc" | "avc"; bitrate: number }[] = [
     { codec: "av01.0.04M.08", muxCodec: "av1", bitrate: 2_500_000 },
     { codec: "hev1.1.6.L93.B0", muxCodec: "hevc", bitrate: 2_500_000 },
@@ -97,6 +96,7 @@ export async function exportVideo(config: ExportConfig): Promise<Blob> {
       height: encH,
       bitrate: candidate.bitrate,
       framerate: fps,
+      latencyMode: "quality",
     });
     if (support.supported) {
       selectedCodec = candidate;
@@ -110,9 +110,10 @@ export async function exportVideo(config: ExportConfig): Promise<Blob> {
     fastStart: "in-memory",
   });
 
+  let encoderError: Error | null = null;
   const encoder = new VideoEncoder({
     output: (chunk, meta) => muxer.addVideoChunk(chunk, meta),
-    error: console.error,
+    error: (e) => { encoderError = e; },
   });
 
   encoder.configure({
@@ -120,10 +121,8 @@ export async function exportVideo(config: ExportConfig): Promise<Blob> {
     width: encW,
     height: encH,
     bitrate: selectedCodec.bitrate,
-    bitrateMode: "variable",
     framerate: fps,
     latencyMode: "quality",
-    hardwareAcceleration: "prefer-hardware",
   });
 
   const canvas = document.createElement("canvas");
@@ -180,6 +179,7 @@ export async function exportVideo(config: ExportConfig): Promise<Blob> {
 
   for (let i = 0; i < totalFrames; i++) {
     checkAbort();
+    if (encoderError) throw encoderError;
     const t = i / fps;
 
     // Stop if we've passed the actual video duration
