@@ -482,6 +482,12 @@ function renderSkipBar() {
 }
 
 // --- Export ---
+let exportController: AbortController | null = null;
+
+$("cancelExportBtn").addEventListener("click", () => {
+  if (exportController) exportController.abort();
+});
+
 $("exportBtn").addEventListener("click", async () => {
   if (!videoEl) return;
   if (!("VideoEncoder" in window)) {
@@ -491,8 +497,11 @@ $("exportBtn").addEventListener("click", async () => {
     return;
   }
 
+  exportController = new AbortController();
   ($("exportBtn") as HTMLButtonElement).disabled = true;
+  $("cancelExportBtn").classList.remove("hidden");
   $("exportStatus").textContent = "Encoding...";
+  ($("exportProgress") as HTMLElement).style.width = "0%";
   const totalStart = performance.now();
 
   // Read export options from UI
@@ -512,6 +521,7 @@ $("exportBtn").addEventListener("click", async () => {
       skipRanges,
       overlay: template.render,
       maxDuration: durationVal || undefined,
+      signal: exportController.signal,
       onProgress: (pct) => {
         ($("exportProgress") as HTMLElement).style.width = pct + "%";
         $("exportStatus").textContent = `Encoding... ${pct}%`;
@@ -541,10 +551,18 @@ $("exportBtn").addEventListener("click", async () => {
     };
   } catch (err) {
     template.dispose();
-    $("exportStatus").textContent = `Export failed: ${err instanceof Error ? err.message : "Unknown error"}`;
-    $("exportStatus").className = "status error";
+    if (err instanceof DOMException && err.name === "AbortError") {
+      $("exportStatus").textContent = "Export cancelled";
+      $("exportStatus").className = "status";
+      ($("exportProgress") as HTMLElement).style.width = "0%";
+    } else {
+      $("exportStatus").textContent = `Export failed: ${err instanceof Error ? err.message : "Unknown error"}`;
+      $("exportStatus").className = "status error";
+    }
   } finally {
     ($("exportBtn") as HTMLButtonElement).disabled = false;
+    $("cancelExportBtn").classList.add("hidden");
+    exportController = null;
   }
 });
 

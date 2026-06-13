@@ -12,6 +12,7 @@ export interface ExportConfig {
   onProgress: (pct: number) => void;
   maxDuration?: number;
   deviceTier?: DeviceTier;
+  signal?: AbortSignal;
 }
 
 function getPositionAtTime(
@@ -37,7 +38,11 @@ function getPositionAtTime(
 }
 
 export async function exportVideo(config: ExportConfig): Promise<Blob> {
-  const { videoEl, keyframes, skipRanges, overlay, onProgress, maxDuration } = config;
+  const { videoEl, keyframes, skipRanges, overlay, onProgress, maxDuration, signal } = config;
+
+  function checkAbort() {
+    if (signal?.aborted) throw new DOMException("Export cancelled", "AbortError");
+  }
 
   const tier = config.deviceTier ?? detectDeviceTier();
   const preset = getPerformancePreset(tier);
@@ -147,6 +152,7 @@ export async function exportVideo(config: ExportConfig): Promise<Blob> {
   }
 
   for (let i = 0; i < totalFrames; i++) {
+    checkAbort();
     const t = i / fps;
 
     // Skip if in a skip range
@@ -161,10 +167,12 @@ export async function exportVideo(config: ExportConfig): Promise<Blob> {
     await new Promise((r) =>
       videoEl.addEventListener("seeked", r, { once: true })
     );
+    checkAbort();
 
     // Cross-fade at cut boundaries (D-19, D-20, D-21)
     if (cutEntryFrames.has(i) && hasPrevFrame) {
       for (let j = 0; j < FADE_FRAMES; j++) {
+        checkAbort();
         const fadeFrameStart = performance.now();
         const alpha = (j + 1) / (FADE_FRAMES + 1);
 
@@ -230,6 +238,7 @@ export async function exportVideo(config: ExportConfig): Promise<Blob> {
         await new Promise((r) =>
           encoder.addEventListener("dequeue", r, { once: true })
         );
+        checkAbort();
       }
 
       encoder.encode(frame, { keyFrame: encodedFrames % 60 === 0 });
@@ -250,12 +259,14 @@ export async function exportVideo(config: ExportConfig): Promise<Blob> {
     if (consecutiveFrames >= effectiveYieldEvery || consecutiveFrames >= preset.maxConsecutive) {
       await new Promise((r) => setTimeout(r, preset.yieldMs));
       consecutiveFrames = 0;
+      checkAbort();
     }
   }
 
   // D-05: Safety sweep — no-op since frames are closed per-iteration in try/finally.
   // If refactored to batch frames, this becomes critical.
 
+  checkAbort();
   await encoder.flush();
   muxer.finalize();
 
