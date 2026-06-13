@@ -118,12 +118,14 @@ export async function analyzeVideoRVFC(
       }
     }
 
-    // Start fast playback
+    // Start fast playback — clamp to 2x on iOS (higher rates drop frames)
     video.currentTime = 0;
     video.muted = true;
-    video.playbackRate = 4;
+    video.setAttribute("playsinline", "");
+    const isIOS = /iPhone|iPad/i.test(navigator.userAgent);
+    video.playbackRate = isIOS ? 2 : 4;
     video.requestVideoFrameCallback(onFrame);
-    video.play();
+    video.play().catch(() => {/* user gesture required — handled by caller */});
   });
 }
 

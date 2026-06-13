@@ -505,6 +505,12 @@ $("exportBtn").addEventListener("click", async () => {
   ($("exportProgress") as HTMLElement).style.width = "0%";
   const totalStart = performance.now();
 
+  // Unlock video playback for iOS Safari (must be within user gesture microtask)
+  videoEl.muted = true;
+  await videoEl.play().catch(() => {});
+  videoEl.pause();
+  videoEl.currentTime = 0;
+
   // Read export options from UI
   const durationVal = parseInt(($("exportDuration") as HTMLSelectElement).value, 10);
   const effects: EffectOptions = {

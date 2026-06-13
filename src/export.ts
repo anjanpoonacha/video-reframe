@@ -122,8 +122,8 @@ export async function exportVideo(config: ExportConfig): Promise<Blob> {
     bitrate: selectedCodec.bitrate,
     bitrateMode: "variable",
     framerate: fps,
-    latencyMode: "realtime",
-    hardwareAcceleration: "prefer-hardware",
+    latencyMode: "quality",
+    hardwareAcceleration: "no-preference",
   });
 
   const canvas = document.createElement("canvas");
@@ -197,6 +197,7 @@ export async function exportVideo(config: ExportConfig): Promise<Blob> {
     // Export takes exactly video_duration seconds but avoids 50-150ms per-frame seek penalty
     videoEl.currentTime = 0;
     videoEl.muted = true;
+    videoEl.setAttribute("playsinline", "");
 
     const frameReady = () => new Promise<void>((resolve) => {
       function onFrame(_now: DOMHighResTimeStamp, metadata: VideoFrameCallbackMetadata) {
@@ -211,10 +212,10 @@ export async function exportVideo(config: ExportConfig): Promise<Blob> {
       videoEl.requestVideoFrameCallback(onFrame);
     });
 
-    // Start playback at 2x — rVFC still fires at compositor rate,
-    // delivering frames at 2x wall-clock speed (halves export time)
+    // Play at 2x — rVFC fires at compositor rate (frames arrive at 2x wall-clock speed)
+    // iOS Safari caps reliable decode at 2x, Android may drop frames above 2x
     videoEl.playbackRate = 2;
-    videoEl.play();
+    await videoEl.play();
 
     for (let i = 0; i < totalFrames; i++) {
       checkAbort();
