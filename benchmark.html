@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html>
+<head><title>Export Benchmark</title></head>
+<body>
+<h2>Video Reframe Export Benchmark</h2>
+<input type="file" id="fileInput" accept="video/*">
+<pre id="log"></pre>
+<script type="module">
+const log = (msg) => { document.getElementById('log').textContent += msg + '\n'; console.log(msg); };
+
+document.getElementById('fileInput').addEventListener('change', async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+
+  const video = document.createElement('video');
+  video.muted = true;
+  video.src = URL.createObjectURL(file);
+  await new Promise(r => video.addEventListener('loadedmetadata', r, {once:true}));
+
+  const duration = video.duration;
+  const fps = 30;
+  const totalFrames = Math.round(duration * fps);
+  log(`Video: ${video.videoWidth}x${video.videoHeight}, ${duration.toFixed(1)}s, ${totalFrames} frames`);
+  log('');
+
+  // Benchmark 1: Seek-based frame access
+  log('--- Benchmark: Seek-based (current prod) ---');
+  const seekStart = performance.now();
+  let seekCount = 0;
+  for (let i = 0; i < Math.min(60, totalFrames); i++) {
+    video.currentTime = i / fps;
+    await new Promise(r => video.addEventListener('seeked', r, {once:true}));
+    seekCount++;
+  }
+  const seekTime = performance.now() - seekStart;
+  const perSeek = seekTime / seekCount;
+  log(`${seekCount} seeks in ${(seekTime/1000).toFixed(2)}s = ${perSeek.toFixed(1)}ms/frame`);
+  log(`Projected full export: ${(perSeek * totalFrames / 1000).toFixed(1)}s`);
+  log('');
+
+  // Benchmark 2: rVFC playback at 1x
+  if ('requestVideoFrameCallback' in video) {
+    log('--- Benchmark: rVFC at 1x playback ---');
+    video.currentTime = 0;
+    let rvfcCount = 0;
+    const rvfcStart = performance.now();
+    const maxRvfc = Math.min(60, totalFrames);
+
+    await new Promise(resolve => {
+      function onFrame(now, meta) {
+        rvfcCount++;
+        if (rvfcCount >= maxRvfc || meta.mediaTime >= 2.0) {
+          video.pause();
+          resolve();
+          return;
+        }
+        video.requestVideoFrameCallback(onFrame);
+      }
+      video.requestVideoFrameCallback(onFrame);
+      video.play();
+    });
+    const rvfcTime = performance.now() - rvfcStart;
+    log(`${rvfcCount} frames in ${(rvfcTime/1000).toFixed(2)}s = ${(rvfcTime/rvfcCount).toFixed(1)}ms/frame`);
+    log(`Projected full export: ${(duration).toFixed(1)}s (real-time)`);
+    log('');
+
+    // Benchmark 3: rVFC at 2x playback
+    log('--- Benchmark: rVFC at 2x playback ---');
+    video.currentTime = 0;
+    video.playbackRate = 2;
+    let rvfc2Count = 0;
+    const rvfc2Start = performance.now();
+
+    await new Promise(resolve => {
+      function onFrame(now, meta) {
+        rvfc2Count++;
+        if (rvfc2Count >= maxRvfc || meta.mediaTime >= 2.0) {
+          video.pause();
+          video.playbackRate = 1;
+          resolve();
+          return;
+        }
+        video.requestVideoFrameCallback(onFrame);
+      }
+      video.requestVideoFrameCallback(onFrame);
+      video.play();
+    });
+    const rvfc2Time = performance.now() - rvfc2Start;
+    log(`${rvfc2Count} frames in ${(rvfc2Time/1000).toFixed(2)}s = ${(rvfc2Time/rvfc2Count).toFixed(1)}ms/frame`);
+    log(`Projected full export at 2x: ${(duration/2).toFixed(1)}s`);
+    log('');
+  }
+
+  // Benchmark 4: VideoEncoder speed test
+  if (typeof VideoEncoder !== 'undefined') {
+    log('--- Benchmark: VideoEncoder throughput (720x1280) ---');
+    const encW = 720, encH = 1280;
+    const canvas = new OffscreenCanvas(encW, encH);
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#333';
+    ctx.fillRect(0, 0, encW, encH);
+
+    // Test codecs
+    const codecs = [
+      { name: 'H.264', codec: 'avc1.640028' },
+      { name: 'AV1', codec: 'av01.0.04M.08' },
+      { name: 'HEVC', codec: 'hev1.1.6.L93.B0' },
+    ];
+
+    for (const {name, codec} of codecs) {
+      const support = await VideoEncoder.isConfigSupported({
+        codec, width: encW, height: encH, bitrate: 2_500_000, framerate: 30
+      });
+      if (!support.supported) { log(`${name}: NOT SUPPORTED`); continue; }
+
+      let chunks = 0;
+      const encoder = new VideoEncoder({
+        output: () => { chunks++; },
+        error: console.error,
+      });
+      encoder.configure({
+        codec, width: encW, height: encH,
+        bitrate: 2_500_000, bitrateMode: 'variable', framerate: 30,
+        latencyMode: 'quality',
+      });
+
+      const testFrames = 30;
+      const encStart = performance.now();
+      for (let f = 0; f < testFrames; f++) {
+        const frame = new VideoFrame(canvas, { timestamp: f * 33333 });
+        encoder.encode(frame, { keyFrame: f % 30 === 0 });
+        frame.close();
+      }
+      await encoder.flush();
+      encoder.close();
+      const encTime = performance.now() - encStart;
+      log(`${name}: ${testFrames} frames in ${(encTime).toFixed(0)}ms = ${(encTime/testFrames).toFixed(1)}ms/frame (${(1000/(encTime/testFrames)).toFixed(0)} fps)`);
+    }
+    log('');
+
+    // Benchmark 5: latencyMode comparison
+    log('--- Benchmark: latencyMode quality vs realtime (H.264) ---');
+    for (const mode of ['quality', 'realtime']) {
+      let chunks = 0;
+      const encoder = new VideoEncoder({
+        output: () => { chunks++; },
+        error: console.error,
+      });
+      encoder.configure({
+        codec: 'avc1.640028', width: encW, height: encH,
+        bitrate: 2_500_000, framerate: 30, latencyMode: mode,
+      });
+      const testFrames = 30;
+      const encStart = performance.now();
+      for (let f = 0; f < testFrames; f++) {
+        const frame = new VideoFrame(canvas, { timestamp: f * 33333 });
+        encoder.encode(frame, { keyFrame: f % 30 === 0 });
+        frame.close();
+      }
+      await encoder.flush();
+      encoder.close();
+      const encTime = performance.now() - encStart;
+      log(`  ${mode}: ${(encTime/testFrames).toFixed(1)}ms/frame (${(1000/(encTime/testFrames)).toFixed(0)} fps)`);
+    }
+  }
+
+  log('\n=== DONE ===');
+});
+</script>
+</body>
+</html>

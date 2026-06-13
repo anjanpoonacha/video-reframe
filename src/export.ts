@@ -122,6 +122,8 @@ export async function exportVideo(config: ExportConfig): Promise<Blob> {
     bitrate: selectedCodec.bitrate,
     bitrateMode: "variable",
     framerate: fps,
+    latencyMode: "realtime",
+    hardwareAcceleration: "prefer-hardware",
   });
 
   const canvas = document.createElement("canvas");
@@ -209,7 +211,9 @@ export async function exportVideo(config: ExportConfig): Promise<Blob> {
       videoEl.requestVideoFrameCallback(onFrame);
     });
 
-    // Start playback
+    // Start playback at 2x — rVFC still fires at compositor rate,
+    // delivering frames at 2x wall-clock speed (halves export time)
+    videoEl.playbackRate = 2;
     videoEl.play();
 
     for (let i = 0; i < totalFrames; i++) {
@@ -234,6 +238,7 @@ export async function exportVideo(config: ExportConfig): Promise<Blob> {
     }
 
     videoEl.pause();
+    videoEl.playbackRate = 1;
     videoEl.muted = false;
   } else {
     // Fallback: seek-based (slow but universal)
@@ -291,7 +296,7 @@ export async function exportVideo(config: ExportConfig): Promise<Blob> {
             );
           }
 
-          encoder.encode(frame, { keyFrame: encodedFrames % 60 === 0 });
+          encoder.encode(frame, { keyFrame: encodedFrames % 150 === 0 });
         } finally {
           frame?.close();
         }
@@ -332,7 +337,7 @@ export async function exportVideo(config: ExportConfig): Promise<Blob> {
         checkAbort();
       }
 
-      encoder.encode(frame, { keyFrame: encodedFrames % 60 === 0 });
+      encoder.encode(frame, { keyFrame: encodedFrames % 150 === 0 });
     } finally {
       frame?.close();
     }
