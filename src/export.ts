@@ -477,20 +477,44 @@ export async function exportVideo(config: ExportConfig): Promise<Blob> {
       checkAbort();
       if (encoderError) throw encoderError;
 
-      // Play and wait for next frame via rVFC
+      // Play and wait for next frame via rVFC (with timeout for end-of-video)
       const mediaTime = await new Promise<number>((resolve) => {
-        videoEl.requestVideoFrameCallback((_now, metadata) => {
+        let resolved = false;
+        const onFrame = (_now: DOMHighResTimeStamp, metadata: VideoFrameCallbackMetadata) => {
+          if (resolved) return;
+          resolved = true;
           videoEl.pause();
           resolve(metadata.mediaTime);
+        };
+        const onEnded = () => {
+          if (resolved) return;
+          resolved = true;
+          resolve(Infinity); // signal end
+        };
+        const timer = setTimeout(() => {
+          if (resolved) return;
+          resolved = true;
+          videoEl.pause();
+          resolve(Infinity); // timeout = treat as end
+        }, 3000);
+        videoEl.addEventListener("ended", onEnded, { once: true });
+        videoEl.requestVideoFrameCallback((now, meta) => {
+          clearTimeout(timer);
+          videoEl.removeEventListener("ended", onEnded);
+          onFrame(now, meta);
         });
-        videoEl.play();
+        videoEl.play().catch(() => {
+          // play() rejected (e.g., already at end)
+          if (!resolved) { resolved = true; resolve(Infinity); }
+        });
       });
+
+      // End of video reached
+      if (mediaTime === Infinity || mediaTime >= duration) break;
 
       // Map to our frame index
       const i = Math.round(mediaTime * fps);
       const t = mediaTime;
-
-      if (t >= duration) break;
 
       // Skip if in a skip range
       if (skipRanges.some((r) => t >= r.start && t < r.end)) continue;
@@ -532,6 +556,7 @@ export async function exportVideo(config: ExportConfig): Promise<Blob> {
     }
 
     videoEl.muted = false;
+    console.log("[export] rVFC loop finished. lastEncodedTime:", lastEncodedTime, "duration:", duration, "encodedFrames:", encodedFrames);
   } else {
     // --- FALLBACK: seek-based export (old browsers without rVFC or VideoDecoder) ---
     for (let i = 0; i < totalFrames; i++) {
@@ -600,14 +625,19 @@ export async function exportVideo(config: ExportConfig): Promise<Blob> {
   // D-05: Safety sweep — no-op since frames are closed per-iteration in try/finally.
   // If refactored to batch frames, this becomes critical.
 
+  console.log("[export] Loop done. encodedFrames:", encodedFrames, "encodeQueueSize:", encoder.encodeQueueSize);
   checkAbort();
+  console.log("[export] Flushing encoder...");
   // Flush with timeout — encoder.flush() can hang on mobile Chrome
-  await Promise.race([
-    encoder.flush(),
-    new Promise<void>((resolve) => setTimeout(resolve, 5000)),
+  const flushed = await Promise.race([
+    encoder.flush().then(() => "flushed"),
+    new Promise<string>((resolve) => setTimeout(() => resolve("timeout"), 5000)),
   ]);
+  console.log("[export] Flush result:", flushed);
   encoder.close();
+  console.log("[export] Muxer finalizing...");
   muxer.finalize();
+  console.log("[export] Done. Blob size:", muxer.target.buffer.byteLength);
 
   return new Blob([muxer.target.buffer], { type: "video/mp4" });
 }
