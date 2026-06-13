@@ -1,6 +1,7 @@
 import { exportVideo } from "./export";
 import { getActiveTemplate, type EffectOptions } from "./templates";
 import { initBrandKitPanel } from "./brand-kit";
+import { analyzeVideoRVFC, hasRVFC } from "./analyze-fast";
 import "./styles.css";
 
 // --- Types ---
@@ -177,7 +178,7 @@ $("clearBtn").addEventListener("click", () => {
   ($("fileInput") as HTMLInputElement).value = "";
 });
 
-// --- Analyze (motion detection + filmstrip in single pass) ---
+// --- Analyze (motion detection + filmstrip) ---
 $("analyzeBtn").addEventListener("click", async () => {
   if (!videoEl) return;
   ($("analyzeBtn") as HTMLButtonElement).disabled = true;
@@ -187,8 +188,24 @@ $("analyzeBtn").addEventListener("click", async () => {
   const numSamples = Math.min(200, Math.round(duration * 3));
   const step = duration / numSamples;
 
-  // Single-pass: detect motion AND capture thumbnails in one seek loop
-  const { positions, frameBitmaps } = await analyzeVideoSinglePass(videoEl, numSamples);
+  // Use fastest available method
+  let positions: { time: number; x: number }[];
+  let frameBitmaps: ImageBitmap[];
+
+  if (hasRVFC()) {
+    $("analyzeStatus").textContent = "Analyzing (fast mode)...";
+    const result = await analyzeVideoRVFC(videoEl, numSamples, (pct) => {
+      ($("analyzeProgress") as HTMLElement).style.width = pct + "%";
+    });
+    positions = result.positions;
+    frameBitmaps = result.frameBitmaps;
+  } else {
+    // Fallback: single-pass seek-based
+    const result = await analyzeVideoSinglePass(videoEl, numSamples);
+    positions = result.positions;
+    frameBitmaps = result.frameBitmaps;
+  }
+
   const smoothed = smoothPositions(positions);
 
   // Build keyframes from smoothed positions (keep only significant changes)
