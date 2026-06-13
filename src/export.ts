@@ -80,9 +80,32 @@ export async function exportVideo(config: ExportConfig): Promise<Blob> {
   // Adjust progress denominator to account for transition frames
   const progressTotal = totalFrames + cutEntryFrames.size * FADE_FRAMES;
 
+  // Select best available codec: AV1 > HEVC > H.264
+  // AV1/HEVC encode ~same speed on hardware but produce better quality at lower bitrate
+  const codecCandidates: { codec: string; muxCodec: "av1" | "hevc" | "avc"; bitrate: number }[] = [
+    { codec: "av01.0.04M.08", muxCodec: "av1", bitrate: 2_500_000 },
+    { codec: "hev1.1.6.L93.B0", muxCodec: "hevc", bitrate: 2_500_000 },
+    { codec: "avc1.640028", muxCodec: "avc", bitrate: 3_000_000 },
+  ];
+
+  let selectedCodec = codecCandidates[codecCandidates.length - 1]!; // H.264 fallback
+  for (const candidate of codecCandidates) {
+    const support = await VideoEncoder.isConfigSupported({
+      codec: candidate.codec,
+      width: encW,
+      height: encH,
+      bitrate: candidate.bitrate,
+      framerate: fps,
+    });
+    if (support.supported) {
+      selectedCodec = candidate;
+      break;
+    }
+  }
+
   const muxer = new Muxer({
     target: new ArrayBufferTarget(),
-    video: { codec: "avc", width: encW, height: encH },
+    video: { codec: selectedCodec.muxCodec, width: encW, height: encH },
     fastStart: "in-memory",
   });
 
@@ -92,10 +115,11 @@ export async function exportVideo(config: ExportConfig): Promise<Blob> {
   });
 
   encoder.configure({
-    codec: "avc1.640028",
+    codec: selectedCodec.codec,
     width: encW,
     height: encH,
-    bitrate: 4_000_000,
+    bitrate: selectedCodec.bitrate,
+    bitrateMode: "variable",
     framerate: fps,
   });
 
