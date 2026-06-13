@@ -1,6 +1,7 @@
 // --- Export pipeline with overlay injection, backpressure, and adaptive performance ---
 
 import { Muxer, ArrayBufferTarget } from "mp4-muxer";
+import { createFile, DataStream } from "mp4box";
 import type { OverlayRenderFn } from "./overlay";
 import { detectDeviceTier, getPerformancePreset, type DeviceTier } from "./device-tier";
 
@@ -36,6 +37,132 @@ function getPositionAtTime(
     }
   }
   return keyframes[keyframes.length - 1]!.x;
+}
+
+/**
+ * Extract codec description (avcC/hvcC box) needed for VideoDecoder.configure
+ */
+function getDescription(mp4boxFile: any, trackId: number): Uint8Array | undefined {
+  const track = mp4boxFile.getTrackById(trackId);
+  if (!track) return undefined;
+  const entry = track.mdia?.minf?.stbl?.stsd?.entries?.[0];
+  if (!entry) return undefined;
+  const box = entry.avcC || entry.hvcC;
+  if (!box) return undefined;
+  const stream = new DataStream(undefined, 0, DataStream.BIG_ENDIAN);
+  box.write(stream);
+  return new Uint8Array(stream.buffer, 8);
+}
+
+/**
+ * Sequential frame decode using VideoDecoder + mp4box.js demuxer.
+ * Yields decoded VideoFrames in presentation order.
+ * Caller MUST close each yielded VideoFrame.
+ */
+async function* decodeFramesSequentially(
+  file: File,
+  signal?: AbortSignal,
+): AsyncGenerator<VideoFrame> {
+  const arrayBuffer = await file.arrayBuffer();
+  const mp4boxFile = createFile();
+
+  // Queue for decoded frames with backpressure
+  const frameQueue: VideoFrame[] = [];
+  let resolveFrame: (() => void) | null = null;
+  let decodeError: Error | null = null;
+  let decodeDone = false;
+
+  const decoder = new VideoDecoder({
+    output: (frame) => {
+      frameQueue.push(frame);
+      if (resolveFrame) {
+        resolveFrame();
+        resolveFrame = null;
+      }
+    },
+    error: (e) => {
+      decodeError = e;
+      if (resolveFrame) {
+        resolveFrame();
+        resolveFrame = null;
+      }
+    },
+  });
+
+  mp4boxFile.onError = (e: string) => {
+    decodeError = new Error(`MP4Box error: ${e}`);
+    if (resolveFrame) {
+      resolveFrame();
+      resolveFrame = null;
+    }
+  };
+
+  mp4boxFile.onReady = (info: any) => {
+    const videoTrack = info.tracks.find((t: any) => t.type === "video");
+    if (!videoTrack) {
+      decodeError = new Error("No video track found");
+      if (resolveFrame) {
+        resolveFrame();
+        resolveFrame = null;
+      }
+      return;
+    }
+
+    decoder.configure({
+      codec: videoTrack.codec,
+      codedWidth: videoTrack.video.width,
+      codedHeight: videoTrack.video.height,
+      description: getDescription(mp4boxFile, videoTrack.id),
+      hardwareAcceleration: "prefer-hardware",
+    });
+
+    mp4boxFile.setExtractionOptions(videoTrack.id);
+    mp4boxFile.start();
+  };
+
+  mp4boxFile.onSamples = (_id: number, _user: any, samples: any[]) => {
+    for (const sample of samples) {
+      if (signal?.aborted) break;
+      const chunk = new EncodedVideoChunk({
+        type: sample.is_sync ? "key" : "delta",
+        timestamp: (sample.cts * 1_000_000) / sample.timescale,
+        duration: (sample.duration * 1_000_000) / sample.timescale,
+        data: sample.data,
+      });
+      decoder.decode(chunk);
+    }
+  };
+
+  // Feed entire file to mp4box
+  (arrayBuffer as any).fileStart = 0;
+  mp4boxFile.appendBuffer(arrayBuffer);
+  mp4boxFile.flush();
+
+  // Flush decoder to signal end of input
+  await decoder.flush();
+  decodeDone = true;
+
+  // Yield all frames from queue
+  while (frameQueue.length > 0 || !decodeDone) {
+    if (signal?.aborted) {
+      // Close remaining frames
+      for (const f of frameQueue) f.close();
+      frameQueue.length = 0;
+      throw new DOMException("Export cancelled", "AbortError");
+    }
+
+    if (decodeError) {
+      for (const f of frameQueue) f.close();
+      frameQueue.length = 0;
+      throw decodeError;
+    }
+
+    if (frameQueue.length > 0) {
+      yield frameQueue.shift()!;
+    } else {
+      break;
+    }
+  }
 }
 
 export async function exportVideo(config: ExportConfig): Promise<Blob> {
@@ -155,90 +282,55 @@ export async function exportVideo(config: ExportConfig): Promise<Blob> {
     }
   }
 
-  for (let i = 0; i < totalFrames; i++) {
-    checkAbort();
-    if (encoderError) throw encoderError;
-    const t = i / fps;
+  // --- Shared helpers for both export paths ---
+  async function encodeCrossFade(
+    srcImage: CanvasImageSource,
+    srcX: number,
+    t: number,
+  ): Promise<void> {
+    for (let j = 0; j < FADE_FRAMES; j++) {
+      checkAbort();
+      const fadeFrameStart = performance.now();
+      const alpha = (j + 1) / (FADE_FRAMES + 1);
 
-    // Stop if we've passed the actual video duration
-    if (t >= videoEl.duration) break;
+      fadeCtx.drawImage(srcImage, srcX, 0, cropSrcW, srcH, 0, 0, encW, encH);
+      overlay(fadeCtx, t, encW, encH);
 
-    // Skip if in a skip range
-    if (skipRanges.some((r) => t >= r.start && t < r.end)) continue;
+      ctx.drawImage(prevCanvas, 0, 0);
+      ctx.globalAlpha = alpha;
+      ctx.drawImage(fadeCanvas, 0, 0);
+      ctx.globalAlpha = 1.0;
 
-    // Get interpolated crop position from keyframes
-    const cropX = getPositionAtTime(t, keyframes);
-    const maxX = srcW - cropSrcW;
-    const srcX = Math.max(0, Math.min(maxX, maxX * cropX));
+      let frame: VideoFrame | null = null;
+      try {
+        frame = new VideoFrame(canvas, {
+          timestamp: encodedFrames * frameDuration,
+          duration: frameDuration,
+        });
 
-    videoEl.currentTime = t;
-    await new Promise<void>((resolve) => {
-      const onSeeked = () => { clearTimeout(timer); resolve(); };
-      const timer = setTimeout(() => {
-        videoEl.removeEventListener("seeked", onSeeked);
-        resolve(); // proceed with whatever frame is available
-      }, 2000);
-      videoEl.addEventListener("seeked", onSeeked, { once: true });
-    });
-    checkAbort();
-
-    // Cross-fade at cut boundaries (D-19, D-20, D-21)
-    if (cutEntryFrames.has(i) && hasPrevFrame) {
-      for (let j = 0; j < FADE_FRAMES; j++) {
-        checkAbort();
-        const fadeFrameStart = performance.now();
-        const alpha = (j + 1) / (FADE_FRAMES + 1);
-
-        // Draw current frame content onto fade canvas
-        fadeCtx.drawImage(videoEl, srcX, 0, cropSrcW, srcH, 0, 0, encW, encH);
-        overlay(fadeCtx, t, encW, encH);
-
-        // Blend: draw previous frame on main, overlay new at progressive alpha
-        ctx.drawImage(prevCanvas, 0, 0);
-        ctx.globalAlpha = alpha;
-        ctx.drawImage(fadeCanvas, 0, 0);
-        ctx.globalAlpha = 1.0;
-
-        // Encode blended frame
-        let frame: VideoFrame | null = null;
-        try {
-          frame = new VideoFrame(canvas, {
-            timestamp: encodedFrames * frameDuration,
-            duration: frameDuration,
-          });
-
-          while (encoder.encodeQueueSize > preset.maxEncodeQueue) {
-            await new Promise((r) =>
-              encoder.addEventListener("dequeue", r, { once: true })
-            );
-          }
-
-          encoder.encode(frame, { keyFrame: encodedFrames % 60 === 0 });
-        } finally {
-          frame?.close();
+        while (encoder.encodeQueueSize > preset.maxEncodeQueue) {
+          await new Promise((r) =>
+            encoder.addEventListener("dequeue", r, { once: true })
+          );
         }
 
-        encodedFrames++;
-        consecutiveFrames++;
-        checkThermalPressure(performance.now() - fadeFrameStart);
+        encoder.encode(frame, { keyFrame: encodedFrames % 60 === 0 });
+      } finally {
+        frame?.close();
+      }
 
-        // Yield gate: adaptive frequency + hard cap (D-18)
-        if (consecutiveFrames >= effectiveYieldEvery || consecutiveFrames >= preset.maxConsecutive) {
-          await new Promise((r) => setTimeout(r, preset.yieldMs));
-          consecutiveFrames = 0;
-        }
+      encodedFrames++;
+      consecutiveFrames++;
+      checkThermalPressure(performance.now() - fadeFrameStart);
+
+      if (consecutiveFrames >= effectiveYieldEvery || consecutiveFrames >= preset.maxConsecutive) {
+        await new Promise((r) => setTimeout(r, preset.yieldMs));
+        consecutiveFrames = 0;
       }
     }
+  }
 
-    const frameStart = performance.now();
-
-    // Draw crop
-    ctx.drawImage(videoEl, srcX, 0, cropSrcW, srcH, 0, 0, encW, encH);
-
-    // Overlay injection (D-02)
-    overlay(ctx, t, encW, encH);
-
-    // Encode with backpressure (D-03) and safe lifecycle (D-04)
+  async function encodeFrame(t: number): Promise<void> {
     let frame: VideoFrame | null = null;
     try {
       frame = new VideoFrame(canvas, {
@@ -246,7 +338,6 @@ export async function exportVideo(config: ExportConfig): Promise<Blob> {
         duration: frameDuration,
       });
 
-      // Backpressure gate: wait if encoder queue is saturated
       while (encoder.encodeQueueSize > preset.maxEncodeQueue) {
         await new Promise((r) =>
           encoder.addEventListener("dequeue", r, { once: true })
@@ -258,21 +349,148 @@ export async function exportVideo(config: ExportConfig): Promise<Blob> {
     } finally {
       frame?.close();
     }
+  }
 
-    // Store rendered frame for potential cross-fade at next cut boundary (GPU-accelerated copy)
-    prevCtx.drawImage(canvas, 0, 0);
-    hasPrevFrame = true;
+  // --- Fast path: VideoDecoder sequential decode (no seeks) ---
+  if (typeof VideoDecoder !== "undefined" && config.sourceFile) {
+    // Build a map of target frame timestamps for the export
+    const targetFrames: { idx: number; t: number }[] = [];
+    for (let i = 0; i < totalFrames; i++) {
+      const t = i / fps;
+      if (t >= duration) break;
+      if (skipRanges.some((r) => t >= r.start && t < r.end)) continue;
+      targetFrames.push({ idx: i, t });
+    }
 
-    encodedFrames++;
-    consecutiveFrames++;
-    checkThermalPressure(performance.now() - frameStart);
-    onProgress(Math.round((i / progressTotal) * 100));
+    let targetIdx = 0;
 
-    // Yield gate: adaptive frequency + hard cap (D-18)
-    if (consecutiveFrames >= effectiveYieldEvery || consecutiveFrames >= preset.maxConsecutive) {
-      await new Promise((r) => setTimeout(r, preset.yieldMs));
-      consecutiveFrames = 0;
+    for await (const decodedFrame of decodeFramesSequentially(config.sourceFile, signal)) {
+      if (targetIdx >= targetFrames.length) {
+        decodedFrame.close();
+        break;
+      }
+
       checkAbort();
+      if (encoderError) {
+        decodedFrame.close();
+        throw encoderError;
+      }
+
+      const frameTimeSec = decodedFrame.timestamp / 1_000_000;
+      const target = targetFrames[targetIdx]!;
+
+      // Skip decoded frames that come before our next target timestamp
+      if (frameTimeSec < target.t - 0.5 / fps) {
+        decodedFrame.close();
+        continue;
+      }
+
+      // Use this decoded frame for the current target
+      try {
+        const cropX = getPositionAtTime(target.t, keyframes);
+        const maxX = srcW - cropSrcW;
+        const srcX = Math.max(0, Math.min(maxX, maxX * cropX));
+
+        // Cross-fade at cut boundaries
+        if (cutEntryFrames.has(target.idx) && hasPrevFrame) {
+          await encodeCrossFade(decodedFrame, srcX, target.t);
+        }
+
+        const frameStart = performance.now();
+
+        // Draw crop from decoded frame
+        ctx.drawImage(decodedFrame, srcX, 0, cropSrcW, srcH, 0, 0, encW, encH);
+
+        // Overlay injection
+        overlay(ctx, target.t, encW, encH);
+
+        // Encode
+        await encodeFrame(target.t);
+
+        // Store for cross-fade
+        if (cutEntryFrames.size > 0) {
+          prevCtx.drawImage(canvas, 0, 0);
+          hasPrevFrame = true;
+        }
+
+        encodedFrames++;
+        consecutiveFrames++;
+        checkThermalPressure(performance.now() - frameStart);
+        onProgress(Math.round((targetIdx / progressTotal) * 100));
+
+        if (consecutiveFrames >= effectiveYieldEvery || consecutiveFrames >= preset.maxConsecutive) {
+          await new Promise((r) => setTimeout(r, preset.yieldMs));
+          consecutiveFrames = 0;
+          checkAbort();
+        }
+
+        targetIdx++;
+      } finally {
+        decodedFrame.close();
+      }
+    }
+  } else {
+    // --- Fallback: seek-based export (browsers without VideoDecoder) ---
+    for (let i = 0; i < totalFrames; i++) {
+      checkAbort();
+      if (encoderError) throw encoderError;
+      const t = i / fps;
+
+      // Stop if we've passed the actual video duration
+      if (t >= videoEl.duration) break;
+
+      // Skip if in a skip range
+      if (skipRanges.some((r) => t >= r.start && t < r.end)) continue;
+
+      // Get interpolated crop position from keyframes
+      const cropX = getPositionAtTime(t, keyframes);
+      const maxX = srcW - cropSrcW;
+      const srcX = Math.max(0, Math.min(maxX, maxX * cropX));
+
+      videoEl.currentTime = t;
+      await new Promise<void>((resolve) => {
+        const onSeeked = () => { clearTimeout(timer); resolve(); };
+        const timer = setTimeout(() => {
+          videoEl.removeEventListener("seeked", onSeeked);
+          resolve(); // proceed with whatever frame is available
+        }, 2000);
+        videoEl.addEventListener("seeked", onSeeked, { once: true });
+      });
+      checkAbort();
+
+      // Cross-fade at cut boundaries (D-19, D-20, D-21)
+      if (cutEntryFrames.has(i) && hasPrevFrame) {
+        await encodeCrossFade(videoEl, srcX, t);
+      }
+
+      const frameStart = performance.now();
+
+      // Draw crop
+      ctx.drawImage(videoEl, srcX, 0, cropSrcW, srcH, 0, 0, encW, encH);
+
+      // Overlay injection (D-02)
+      overlay(ctx, t, encW, encH);
+
+      // Encode with backpressure (D-03) and safe lifecycle (D-04)
+      await encodeFrame(t);
+
+      // Store rendered frame for potential cross-fade at next cut boundary (GPU-accelerated copy)
+      if (cutEntryFrames.size > 0) {
+        prevCtx.drawImage(canvas, 0, 0);
+        hasPrevFrame = true;
+      }
+
+      encodedFrames++;
+      consecutiveFrames++;
+      checkThermalPressure(performance.now() - frameStart);
+      onProgress(Math.round((i / progressTotal) * 100));
+
+      // Yield gate: adaptive frequency + hard cap (D-18)
+      if (consecutiveFrames >= effectiveYieldEvery || consecutiveFrames >= preset.maxConsecutive) {
+        await new Promise((r) => setTimeout(r, preset.yieldMs));
+        consecutiveFrames = 0;
+        checkAbort();
+      }
     }
   }
 

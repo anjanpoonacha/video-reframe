@@ -16,9 +16,13 @@ export function detectDeviceTier(): DeviceTier {
   if (mem !== undefined && mem <= 4) return "low";
   if (mem !== undefined && mem > 4) return "high";
 
-  // Fallback: assume low on mobile (conservative)
+  // Fallback: check cores as secondary signal (mid-range+ phones have 6+ cores)
   const isMobile = /Android|iPhone|iPad/i.test(navigator.userAgent);
-  return isMobile ? "low" : "high";
+  if (isMobile) {
+    const cores = navigator.hardwareConcurrency || 4;
+    return cores >= 6 ? "high" : "low";
+  }
+  return "high";
 }
 
 export function getPerformancePreset(tier: DeviceTier): PerformancePreset {
