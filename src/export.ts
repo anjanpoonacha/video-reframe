@@ -13,6 +13,7 @@ export interface ExportConfig {
   maxDuration?: number;
   deviceTier?: DeviceTier;
   signal?: AbortSignal;
+  sourceFile?: File; // for WebCodecs decode path (avoids seeks)
 }
 
 function getPositionAtTime(
@@ -175,23 +176,89 @@ export async function exportVideo(config: ExportConfig): Promise<Blob> {
     }
   }
 
+  // Frame source: use rVFC playback if available (eliminates ~100ms/frame seek cost)
+  const usePlayback = "requestVideoFrameCallback" in videoEl;
+
+  // Pre-build set of skipped frame indices for O(1) lookup
+  const skippedFrames = new Set<number>();
   for (let i = 0; i < totalFrames; i++) {
-    checkAbort();
     const t = i / fps;
+    if (skipRanges.some((r) => t >= r.start && t < r.end)) skippedFrames.add(i);
+  }
 
-    // Skip if in a skip range
-    if (skipRanges.some((r) => t >= r.start && t < r.end)) continue;
+  // Frame iterator: yields frame index sequentially
+  let frameQueue: { resolve: () => void }[] = [];
+  let currentFrameIdx = 0;
 
-    // Get interpolated crop position from keyframes
-    const cropX = getPositionAtTime(t, keyframes);
-    const maxX = srcW - cropSrcW;
-    const srcX = Math.max(0, Math.min(maxX, maxX * cropX));
+  if (usePlayback) {
+    // Play-based export: real-time but no seek overhead
+    // Export takes exactly video_duration seconds but avoids 50-150ms per-frame seek penalty
+    videoEl.currentTime = 0;
+    videoEl.muted = true;
 
-    videoEl.currentTime = t;
-    await new Promise((r) =>
-      videoEl.addEventListener("seeked", r, { once: true })
-    );
-    checkAbort();
+    const frameReady = () => new Promise<void>((resolve) => {
+      function onFrame(_now: DOMHighResTimeStamp, metadata: VideoFrameCallbackMetadata) {
+        const targetTime = currentFrameIdx / fps;
+        // If current media time is close enough to our target, resolve
+        if (metadata.mediaTime >= targetTime - 0.02) {
+          resolve();
+        } else {
+          videoEl.requestVideoFrameCallback(onFrame);
+        }
+      }
+      videoEl.requestVideoFrameCallback(onFrame);
+    });
+
+    // Start playback
+    videoEl.play();
+
+    for (let i = 0; i < totalFrames; i++) {
+      checkAbort();
+      currentFrameIdx = i;
+      const t = i / fps;
+
+      // Skip if in a skip range
+      if (skippedFrames.has(i)) continue;
+
+      // Wait for playback to reach this frame
+      await frameReady();
+      checkAbort();
+
+      // Get interpolated crop position from keyframes
+      const cropX = getPositionAtTime(t, keyframes);
+      const maxX = srcW - cropSrcW;
+      const srcX = Math.max(0, Math.min(maxX, maxX * cropX));
+
+      // --- encode frame (shared logic below) ---
+      await encodeOneFrame(i, t, srcX);
+    }
+
+    videoEl.pause();
+    videoEl.muted = false;
+  } else {
+    // Fallback: seek-based (slow but universal)
+    for (let i = 0; i < totalFrames; i++) {
+      checkAbort();
+      const t = i / fps;
+
+      if (skippedFrames.has(i)) continue;
+
+      const cropX = getPositionAtTime(t, keyframes);
+      const maxX = srcW - cropSrcW;
+      const srcX = Math.max(0, Math.min(maxX, maxX * cropX));
+
+      videoEl.currentTime = t;
+      await new Promise((r) =>
+        videoEl.addEventListener("seeked", r, { once: true })
+      );
+      checkAbort();
+
+      await encodeOneFrame(i, t, srcX);
+    }
+  }
+
+  // Shared encode logic extracted into local function
+  async function encodeOneFrame(i: number, t: number, srcX: number) {
 
     // Cross-fade at cut boundaries (D-19, D-20, D-21)
     if (cutEntryFrames.has(i) && hasPrevFrame) {

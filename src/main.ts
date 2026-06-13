@@ -523,6 +523,7 @@ $("exportBtn").addEventListener("click", async () => {
       overlay: template.render,
       maxDuration: durationVal || undefined,
       signal: exportController.signal,
+      sourceFile: currentFile || undefined,
       onProgress: (pct) => {
         ($("exportProgress") as HTMLElement).style.width = pct + "%";
         $("exportStatus").textContent = `Encoding... ${pct}%`;
